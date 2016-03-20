@@ -1,0 +1,26 @@
+(printout t "Carregando mineX0.jess" crlf)
+
+
+;;; Escolhe a celula 
+;;;
+
+(defmodule MINE)
+
+(deffunction randInterval (?min ?max)
+(+ ?min (mod (random) (- (+ 1 ?max) ?min))))
+
+(deffacts tag-escolhe
+   (escolhe-prox))
+
+(defrule ui
+?out <- (escolhe-prox)
+(mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+=>
+(retract ?out)
+(assert (escolhe-prox) (novas-bandeiras) 
+        (escolhe (x (randInterval ?minx ?maxx)) 
+                 (y (randInterval ?miny ?maxy))))
+(return))
+
+
+(printout t "O FIM de mineX0.jess" crlf)

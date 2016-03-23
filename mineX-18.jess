@@ -1,6 +1,11 @@
 ;;MODULES DEFINITION
 (defmodule MINE)
 (defmodule INIT)
+(deftemplate INIT::cell
+  (slot x)
+  (slot y)
+)
+(defmodule FLAG)
 
 ;;;;;;;;;;;;;;;;;;;;;;;; MINE MODULE
 (set-current-module MINE)
@@ -70,44 +75,76 @@
   (while ( <= ?i ?maxx ) do
     (bind ?j ?miny)
     (while ( <= ?j ?maxy ) do
-      (assert (INIT::fechada ?i ?j))
+      (assert (MAIN::closed ?i ?j))
       (bind ?j (+ ?j 1))
     )
     (bind ?i (+ ?i 1))
   )
   (printout t "Woofy is inspecting closer..." crlf)
-  (assert (INIT::inserted-fechadas))
+  (assert (INIT::inserted-closed))
 )
 
-(defrule INIT::open-closed-xor
-  (declare (salience 2))
-  ?out <- (INIT::fechada ?fx ?fy)
-  (MAIN::aberta (x ?fx) (y ?fy))
+;;REMOVE CLOSED INCORRECTOS
+(defrule remove-incorrect-closed
+  (declare (salience 3))
+  (INIT::inserted-closed)
+  ?c <- (MAIN::closed ?x ?y)
+  ?a <- (MAIN::aberta (x ?x) (y ?y))
   =>
-  (retract ?out)
+  (printout t "removing closed!" crlf)
+  (retract ?c)
 )
-(defrule INIT::open-closed-xor-aux
+
+;;para cada aberta ver quantas fechadas adjacentes tem
+(defrule remove-unecessary-abertas
   (declare (salience 2))
-  ?out <- (INIT::fechada ?fx ?fy)
-  (not (MAIN::aberta (x ?fx) (y ?fy)))
+  (INIT::inserted-closed)
+  ?z <- (MAIN::aberta (valor 0))
   =>
-  (assert (MAIN::closed ?fx ?fy))
-  (retract ?out)
+  (printout t "removing aberta com 0!" crlf)
+  (retract ?z)
 )
 
+(defrule insert-open-with-array
+  (declare (salience 2))
+  (INIT::inserted-closed)
+  ?z <- (MAIN::aberta (x ?x) (y ?y) (valor ?v&:(> ?v 0)))
+  =>
+  (printout t "arraying aberta!" crlf)
+  (retract ?z)
+  (assert (MAIN::open ?x ?y ?v (create$)))
+)
 
-(defrule INIT::send-to-flagging
+(defrule INIT::set-open-adjancentes
   (declare (salience 1))
-  ?z <- (INIT::inserted-fechadas)
+  ?z <- (INIT::inserted-closed)
+  (not (MAIN::aberta (valor 0)))
   =>
   (retract ?z)
-  (printout t "Woofy found something.." crlf)
-
-  ;;GO_TO defrule MINE::play
+  (printout t "sent to play" crlf)
   (assert (MINE::play))
 )
 
+;;;;;;;;;;;;;;;;;;;;;;;; FLAG MODULE
+(deffunction FLAG::plus (?n)
+  (+ ?n 1)
+)
+(deffunction FLAG::plusTwo (?n)
+  (+ ?n 2)
+)
+(deffunction FLAG::minus (?n)
+  (- ?n 1)
+)
+(deffunction FLAG::minusTwo (?n)
+  (- ?n 2)
+)
 
+(defrule FLAG::setup
+  (declare (auto-focus TRUE))
+  ?z <- (FLAG::GO_TO)
+  =>
+  (assert (FLAG::base-flags))
+)
 
 
 

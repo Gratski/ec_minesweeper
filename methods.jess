@@ -17,6 +17,41 @@
   )
 )
 
+
+
+f-990   (MAIN::clean -5 2)
+f-991   (MAIN::clean -3 2)
+
+
+f-994   (MAIN::clean -6 -4)
+
+
+f-997   (MAIN::clean 5 0)
+f-998   (MAIN::clean 5 -2)
+f-999   (MAIN::clean 8 -2)
+
+f-1001   (MAIN::clean 0 8)
+f-1002   (MAIN::clean -2 7)
+f-1003   (MAIN::clean 9 -5)
+f-1004   (MAIN::clean 10 -5)
+f-1005   (MAIN::clean 9 -7)
+f-1006   (MAIN::clean 9 -1)
+f-1007   (MAIN::clean 9 1)
+f-1008   (MAIN::clean 8 0)
+f-1009   (MAIN::clean 11 7)
+f-1010   (MAIN::clean 11 8)
+f-1011   (MAIN::clean 9 7)
+f-1012   (MAIN::clean 9 8)
+
+(defrule remove-cells
+  (declare (salience 2))
+  (MINE::play)
+  ?z <- (MAIN::cell (x ?x))
+  =>
+  (retract ?z)
+)
+
+
 ;;set-safe
 (defrule set-safe
   (declare (salience 2))

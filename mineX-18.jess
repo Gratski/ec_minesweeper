@@ -55,6 +55,63 @@
   (return)
 )
 
+(deftemplate coor
+  (slot x)
+  (slot y)
+)
+
+(defrule play-super-click
+  (declare (auto-focus TRUE))
+  ?p <- (MINE::play-super-click)
+  (MAIN::aberta (x ?x) (y ?y) (valor ?val))
+  (not (= ?val 0))
+  (= (vizinhas-free ?x ?y) ?val)
+  =>
+  (printout t "Woof Woof!" crlf)
+  (printout t "Vizinhas-free" crlf)
+  (retract ?p)
+  (assert (escolhe-prox) (novas-bandeiras) 
+        (escolhe (x ?x) 
+                 (y ?y)))
+  (assert (MINE::run-algorithm))
+  (return)
+)
+
+(deffunction vizinhas (?x ?y)
+  (assert vizinhas (- ?x 1) (- ?y 1))
+  (assert vizinhas ?x (- ?y 1))
+  (assert vizinhas (- ?x 1) ?y)
+  (assert vizinhas (+ ?x 1) (+ ?y 1))
+  (assert vizinhas ?x (+ ?y 1))
+  (assert vizinhas (+ ?x 1) ?y)
+  (assert vizinhas (+ ?x 1) (- ?y 1))
+  (assert vizinhas (- ?x 1) (+ ?y 1))
+  (assert (list-vizinhas ?x ?y))
+)
+
+(defrule vizinhas-aux (?x ?y)
+  ?id3 <- (list-vizinhas ?s ?z $?rest)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  ?id <- (vizinhas ?x&:(and (>= (?minx) (<= (?maxx)))) ?y&:(and (>= (?miny) (<= (?maxy)))))
+  ?id2 <- (vizinhas ?x&:(or (< (?minx) (> (?maxx)))) ?y&:(or (< (?miny) (> (?maxy)))))
+=>
+  (retract ?id)
+  (retract ?id2)
+  (retract ?id3)
+  (assert (list-vizinhas ?s ?z ?x ?y $?rest))
+)
+
+(deffunction vizinhas-free (?x ?y)
+  (vizinhas ?x ?y)
+  ?id <- (list-vizinhas ?x ?y $?before ?xx ?yy $?after)
+  (nth$)
+  (not (MAIN::aberta (x ?xx) (y ?yy) (valor ?val)))
+=>
+  (retract ?id)
+  (assert list-vizinhas ?x ?y ?xx ?yy)
+  (assert (list-vizinhas ?x ?y $?before $?after))
+)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;; INIT MODULE
 (defrule INIT::set-all-closed
@@ -104,7 +161,7 @@
   (printout t "Woofy found something.." crlf)
 
   ;;GO_TO defrule MINE::play
-  (assert (MINE::play))
+  (assert (MINE::play-super-click))
 )
 
 

@@ -1,0 +1,37 @@
+;;calcula a distancia de manhattan
+(deffunction METHODS::manhattan (?xh ?yh ?xb ?yb)
+  (+
+    (abs (- ?xh ?xb))
+    (abs (- ?yh ?yh))
+  )
+)
+
+;;verifica se duas casas sao vizinhas
+(deffunction METHODS::viz (?xh ?yh ?xb ?yb)
+  (or
+    (= (METHODS::manhattan ?xh ?yh ?xb ?yb ) 1)
+    (( and (= (- ?xb 1) ?xh ) (= (+ ?yb 1) ?yh ) )) ;;top left
+    (( and (= (+ ?xb 1) ?xh ) (= (+ ?yb 1) ?yh ) )) ;;top right
+    (( and (= (- ?xb 1) ?xh ) (= (- ?yb 1) ?yh ) )) ;;bottom left
+    (( and (= (+ ?xb 1) ?xh ) (= (- ?yb 1) ?yh ) )) ;;bottom right
+  )
+)
+
+
+(defrule testa
+  (MAIN::facto 
+    $?l&:(member$ (create$ 1 2) $?l)
+  )
+  =>
+  (printout t "VIZ" crlf)
+)
+
+(assert
+  (yo 
+  (insert$
+    1
+    (create$ (create$ 1 2))
+    (create$ 2 1)
+  )
+  )
+)

@@ -19,6 +19,24 @@
   )
 )
 
+(deffunction METHODS::has-cell-member (?x ?y $?list)
+  (METHODS::has-cell-member-aux ?x ?y 1 $?list)
+)
+
+(deffunction METHODS::has-cell-member-aux (?x ?y ?index $?list)
+  (if (> ?index (- (length$ $?list) 1))
+    then
+      (return FALSE)
+  )
+  (bind ?first (nth$ ?index ?list))
+  (bind ?second (nth$ (+ ?index 1) $?list))
+  (if (and (= ?x ?first) (= ?y ?second))
+    then
+      (return TRUE)
+    else
+      (METHODS::has-cell-member-aux ?x ?y (+ ?index 2) $?list)
+  )
+)
 
 (defmodule MINE)
 (defmodule INIT)
@@ -89,42 +107,97 @@
 )
 
 (defrule pre-play
-  (declare (salience 2))
-  (MAIN::flag ?x ?y)
+  (declare (salience 3))
   (MINE::play)
-  (not(MAIN::flags $?antes ?x ?y $?depois))
+
+  (MAIN::clean ?xc ?yc)
+  (MAIN::fechada (x ?xf) (y ?yf))
+  (not (MAIN::flag ?xf ?yf))
+  (test
+    (METHODS::viz ?xf ?yf ?xc ?yc)
+  )
+  (not (exists (MAIN::jogada ? ?)))
   =>
-  (assert (MAIN::flags ?x ?y))
+  (assert (MAIN::jogada ?xf ?yf))
+)
+
+(defrule remove-fechadas
+  (declare (salience 2))
+  (MINE::play)
+  ?z <- (MAIN::fechada (x ?x))
+  =>
+  (retract ?z)
+)
+
+(defrule remove-others
+  (declare (salience 2))
+  (MINE::play)
+  ?x <- (FLAG::flag)
+  ?y <- (INIT::go_to)
+  =>
+  (retract ?y)
+  (retract ?x)
+)
+
+(defrule remove-cells
+  (declare (salience 2))
+  (MINE::play)
+  ?z <- (MAIN::cell (x ?x))
+  =>
+  (retract ?z)
+)
+
+(defrule remove-clean
+  (declare (salience 2))
+  (MINE::play)
+  ?z <- (MAIN::clean ? ?)
+  =>
+  (retract ?z)
+)
+
+(defrule remove-flags
+  (declare (salience 2))
+  (MINE::play)
+  ?z <- (MAIN::flag ? ?)
+  =>
+  (retract ?z)
 )
 
 (defrule play
   (declare (salience 1))
   ?p <- (MINE::play)
   (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
-  (MAIN::flags $?flags)
+  ?x <- (MAIN::flags $?flags)
+  ?z <- (MAIN::jogada ?xf ?yf)
   =>
   (printout t "Woof Woof!" crlf)
   (retract ?p)
+  (retract ?z)
+  (retract ?x)
   (assert (escolhe-prox) (novas-bandeiras $?flags) 
+        (escolhe (x ?xf) 
+                 (y ?yf)))
+  (assert (MINE::run-algorithm))
+  (return)
+)
+
+(defrule rand-play
+  (declare (salience 1))
+  ?p <- (MINE::play)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  ?x <- (MAIN::flags $?flags)
+  (not (exists(MAIN::jogada ? ?)))
+  =>
+  (printout t "Woof Woof!" crlf)
+  (retract ?p)
+  (retract ?x)
+  (assert (escolhe-prox) (novas-bandeiras) 
         (escolhe (x (randInterval ?minx ?maxx)) 
                  (y (randInterval ?miny ?maxy))))
   (assert (MINE::run-algorithm))
   (return)
 )
 
-(defrule pre-play
-  (MINE::play)
-  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
-  (MAIN::flags $?flags)
-  =>
-  (printout t "Woof Woof!" crlf)
-  (retract ?p)
-  (assert (escolhe-prox) (novas-bandeiras $?flags) 
-        (escolhe (x (randInterval ?minx ?maxx)) 
-                 (y (randInterval ?miny ?maxy))))
-  (assert (MINE::run-algorithm))
-  (return)
-)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;INIT
 (set-current-module INIT)
@@ -203,8 +276,10 @@
   (assert (FLAG::flag))
 )
 
-(defrule set-flag
-  (declare (salience 2))
+
+
+(defrule flag
+  (declare (salience 3))
   (FLAG::flag)
   (MAIN::fechada (x ?xf) (y ?yf))
   ?z <- (MAIN::cell
@@ -216,15 +291,50 @@
     (= (length$ $?closed) (* ?v 2))
   )
   (test
-    (has-cell-member ?xf ?yf $?closed)
+    (METHODS::has-cell-member ?xf ?yf $?closed)
   )
   (test
-    (not(has-cell-member ?xf ?yf $?flags))
+    (not(METHODS::has-cell-member ?xf ?yf ?flags))
   )
-
   =>
   (modify ?z (viz-flags $?flags ?xf ?yf))
   (assert (MAIN::flag ?xf ?yf))
+)
+
+(defrule set-side-flags
+  (declare (salience 2))
+  (FLAG::flag)
+  (MAIN::flag ?xf ?yf)
+  ?z <- (MAIN::cell
+          (x ?x) (y ?y) (v ?v)
+          (viz-closed $?closed)
+          (viz-flags $?flags)
+        )
+  (test
+    (METHODS::has-cell-member ?xf ?yf $?closed)
+  )
+  (test
+    (not(METHODS::has-cell-member ?xf ?yf $?flags))
+  )
+  =>
+  (modify ?z (viz-flags $?flags ?xf ?yf))
+)
+
+(defrule set-safe
+  (declare (salience 2))
+  (FLAG::flag)
+  ?z <- (MAIN::cell (x ?x) (y ?y) (v ?v) 
+              (viz-flags $?flags) 
+              (viz-safe $?safe) 
+              (viz-closed $?closed)
+  )
+  (test (= 
+          (/ (length$ $?flags) 2)
+          ?v
+        )
+  )
+  =>
+  (assert (MAIN::clean ?x ?y))
 )
 
 (defrule pass

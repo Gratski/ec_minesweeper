@@ -17,21 +17,19 @@
   )
 )
 
-
-(defrule testa
-  (MAIN::facto 
-    $?l&:(member$ (create$ 1 2) $?l)
+;;set-safe
+(defrule set-safe
+  (declare (salience 2))
+  (MAIN::cell (x ?x) (y ?y) (v ?v) 
+              (viz-flags $?flags) 
+              (viz-safe $?safe) 
+              (viz-closed $?closed)
+  )
+  (test (= 
+          (- (length$ $?closed) (length$ $?flags))
+          ?v
+        )
   )
   =>
-  (printout t "VIZ" crlf)
-)
-
-(assert
-  (yo 
-  (insert$
-    1
-    (create$ (create$ 1 2))
-    (create$ 2 1)
-  )
-  )
+  (assert-safe $?closed $?safe)
 )

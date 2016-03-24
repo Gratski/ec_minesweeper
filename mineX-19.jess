@@ -85,9 +85,40 @@
   (assert (INIT::go_to))
 )
 
-(defrule play
+(defrule prepare
   (declare (auto-focus TRUE))
+  ?z <- (MINE::prepare-play)
+  =>
+  (retract ?z)
+  (assert (MINE::play))
+)
+
+(defrule pre-play
+  (declare (salience 2))
+  (MAIN::flag ?x ?y)
+  (MINE::play)
+  (not(MAIN::flags $?antes ?x ?y $?depois))
+  =>
+  (assert (MAIN::flags ?x ?y))
+)
+
+(defrule play
+  (declare (salience 1))
   ?p <- (MINE::play)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  (MAIN::flags $?flags)
+  =>
+  (printout t "Woof Woof!" crlf)
+  (retract ?p)
+  (assert (escolhe-prox) (novas-bandeiras $?flags) 
+        (escolhe (x (randInterval ?minx ?maxx)) 
+                 (y (randInterval ?miny ?maxy))))
+  (assert (MINE::run-algorithm))
+  (return)
+)
+
+(defrule pre-play
+  (MINE::play)
   (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
   (MAIN::flags $?flags)
   =>
@@ -180,20 +211,19 @@
 (defrule flag
   (declare (salience 2))
   (FLAG::flag)
-  (MAIN::viz 
-    (x ?xv) (y ?yv) (v ?vv) (vizs $?vl&:(= 2 ?vv)))
-  ?z <- (MAIN::flags $?fl)
-  (not (MAIN::flags $?a ?xv ?yv $?d))
+  (MAIN::fechada (x ?xf) (y ?yf))
+  (MAIN::viz (x ?xv) (y ?yv) (v ?vv) (vizs $? ?xf ?yf $?))
+  (MAIN::viz (x ?xv) (y ?yv) (v ?vv) (vizs $?list&:(= (length$ $?list)  2 ))) 
   =>
-  (retract ?z)
-  (assert (MAIN::flags $?fl ?xv ?yv))
+  (assert (MAIN::flag ?xf ?yf))
 )
 
 (defrule pass
   (declare (salience 1))
   (FLAG::flag)
   =>
-  (assert (MINE::play))
+  (printout t "gonna play" crlf)
+  (assert (MINE::prepare-play))
 )
 
 

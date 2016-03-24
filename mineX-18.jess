@@ -1,0 +1,116 @@
+;;MODULES DEFINITION
+(defmodule MINE)
+(defmodule INIT)
+
+;;;;;;;;;;;;;;;;;;;;;;;; MINE MODULE
+(set-current-module MINE)
+
+(deffacts tag-escolhe
+   (escolhe-prox))
+
+(deffunction randInterval (?min ?max)
+(+ ?min (mod (random) (- (+ 1 ?max) ?min))))
+
+;;First shot is totally blind
+(defrule initial
+  ?z    <- (MAIN::initial-fact)
+  ?out  <- (escolhe-prox)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  =>
+  (printout t "Woofy the dog is going to save your garden. Fette Atencion!" crlf)
+  (printout t "Fette Atencion Monsieur!" crlf)
+  (retract ?out)
+  (retract ?z)
+  (assert (escolhe-prox) (novas-bandeiras) 
+        (escolhe (x (randInterval ?minx ?maxx)) 
+                 (y (randInterval ?miny ?maxy))))
+  (assert (MINE::run-algorithm))
+  (return)
+)
+
+
+
+
+(defrule setup
+  ?z <- (MINE::run-algorithm)
+  ?out  <- (escolhe-prox)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  =>
+  (retract ?z)
+  (printout t "Woofy is carefully inspecting...")
+  (assert (INIT::go))
+)
+
+(defrule play
+  (declare (auto-focus TRUE))
+  ?p <- (MINE::play)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  =>
+  (printout t "Woof Woof!" crlf)
+  (retract ?p)
+  (assert (escolhe-prox) (novas-bandeiras) 
+        (escolhe (x (randInterval ?minx ?maxx)) 
+                 (y (randInterval ?miny ?maxy))))
+  (assert (MINE::run-algorithm))
+  (return)
+)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;; INIT MODULE
+(defrule INIT::set-all-closed
+  (declare (auto-focus TRUE))
+  ?z <- (INIT::go)
+  (MAIN::mundo 
+    (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy)
+  )
+  =>
+  (retract ?z)
+  (printout t "doing the math..")
+  (bind ?i ?minx)
+  (while ( <= ?i ?maxx ) do
+    (bind ?j ?miny)
+    (while ( <= ?j ?maxy ) do
+      (assert (INIT::fechada ?i ?j))
+      (bind ?j (+ ?j 1))
+    )
+    (bind ?i (+ ?i 1))
+  )
+  (printout t "Woofy is inspecting closer..." crlf)
+  (assert (INIT::inserted-fechadas))
+)
+
+(defrule INIT::open-closed-xor
+  (declare (salience 2))
+  ?out <- (INIT::fechada ?fx ?fy)
+  (MAIN::aberta (x ?fx) (y ?fy))
+  =>
+  (retract ?out)
+)
+(defrule INIT::open-closed-xor-aux
+  (declare (salience 2))
+  ?out <- (INIT::fechada ?fx ?fy)
+  (not (MAIN::aberta (x ?fx) (y ?fy)))
+  =>
+  (assert (MAIN::closed ?fx ?fy))
+  (retract ?out)
+)
+
+
+(defrule INIT::send-to-flagging
+  (declare (salience 1))
+  ?z <- (INIT::inserted-fechadas)
+  =>
+  (retract ?z)
+  (printout t "Woofy found something.." crlf)
+
+  ;;GO_TO defrule MINE::play
+  (assert (MINE::play))
+)
+
+
+
+
+
+
+;;FINAL MESSAGE
+(printout t "O FIM de mineX18.jess" crlf)

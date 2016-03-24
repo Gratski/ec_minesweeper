@@ -203,13 +203,27 @@
   (assert (FLAG::flag))
 )
 
-(defrule flag
+(defrule set-flag
   (declare (salience 2))
   (FLAG::flag)
   (MAIN::fechada (x ?xf) (y ?yf))
-  (MAIN::cell (x ?xv) (y ?yv) (v ?vv) (viz-closed $? ?xf ?yf $?))
-  (MAIN::cell (x ?xv) (y ?yv) (v ?vv) (viz-closed $?list&:(= (length$ $?list)  (* ?vv 2) )))
+  ?z <- (MAIN::cell
+          (x ?x) (y ?y) (v ?v)
+          (viz-closed $?closed)
+          (viz-flags $?flags)
+        )
+  (test
+    (= (length$ $?closed) (* ?v 2))
+  )
+  (test
+    (has-cell-member ?xf ?yf $?closed)
+  )
+  (test
+    (not(has-cell-member ?xf ?yf $?flags))
+  )
+
   =>
+  (modify ?z (viz-flags $?flags ?xf ?yf))
   (assert (MAIN::flag ?xf ?yf))
 )
 
@@ -221,6 +235,7 @@
   (assert (MINE::play))
 )
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;FINAL MESSAGE
 (printout t "O FIM de mineX18.jess" crlf)

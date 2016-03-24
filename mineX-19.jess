@@ -203,6 +203,30 @@
   (assert (FLAG::flag))
 )
 
+(deffunction has-cell-member (?x ?y $?list)
+  (has-cell-member-aux ?x ?y 1 $?list)
+)
+
+(deffunction has-cell-member-aux (?x ?y ?index $?list)
+  (if (> ?index (- (length$ $?list) 1))
+    then
+      (return false)
+  )
+  (bind ?first (nth$ ?index ?list))
+  (bind ?second (nth$ (+ ?index 1) $?list))
+  (if (and (= ?x ?first) (= ?y ?second))
+    then
+      (return TRUE)
+    else
+      (has-cell-member-aux ?x ?y (+ ?index 2) $?list)
+  )
+)
+
+
+
+
+ complementar e depois assert de cada com foreach
+
 (defrule flag
   (declare (salience 2))
   (FLAG::flag)

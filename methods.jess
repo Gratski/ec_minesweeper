@@ -17,7 +17,31 @@
   )
 )
 
-
+(not 
+    (or
+      
+        (exists(MAIN::cell (x ?xcc&:(not(= ?xc ?xcc))) (y ?ycc) (v ?vcc)
+                  (viz-safe $?ccsafe&:(> (length$ $?ccsafe) (length$ $?csafe)))
+                  (viz-closed $?ccclosed)
+                )
+        )
+      
+      
+        (exists(MAIN::cell (x ?xcc) (y ?ycc&:(not(= ?yc ?ycc))) (v ?vcc)
+                  (viz-safe $?ccsafe&:(> (length$ $?ccsafe) (length$ $?csafe)))
+                  (viz-closed $?ccclosed)
+                )
+        )
+      
+      
+        (exists(MAIN::cell (x ?xcc&:(not(= ?xc ?xcc))) (y ?ycc&:(not(= ?yc ?ycc))) (v ?vcc)
+                  (viz-safe $?ccsafe&:(> (length$ $?ccsafe) (length$ $?csafe)))
+                  (viz-closed $?ccclosed)
+                )
+        )
+      
+    )
+  )
 
 f-990   (MAIN::clean -5 2)
 f-991   (MAIN::clean -3 2)

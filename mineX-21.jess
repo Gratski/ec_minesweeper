@@ -1,0 +1,457 @@
+;;MODULES DEFINITION
+(defmodule METHODS)
+;;calcula a distancia de manhattan
+(deffunction METHODS::manhattan (?xh ?yh ?xb ?yb)
+  (+
+    (abs (- ?xh ?xb))
+    (abs (- ?yh ?yb))
+  )
+)
+
+;;verifica se duas casas sao vizinhas
+(deffunction METHODS::viz (?xh ?yh ?xb ?yb)
+  (or
+    (= (METHODS::manhattan ?xh ?yh ?xb ?yb ) 1)
+    ( and (= (- ?xb 1) ?xh ) (= (+ ?yb 1) ?yh )) ;;top left
+    ( and (= (+ ?xb 1) ?xh ) (= (+ ?yb 1) ?yh )) ;;top right
+    ( and (= (- ?xb 1) ?xh ) (= (- ?yb 1) ?yh )) ;;bottom left
+    ( and (= (+ ?xb 1) ?xh ) (= (- ?yb 1) ?yh )) ;;bottom right
+  )
+)
+
+(deffunction METHODS::has-cell-member (?x ?y $?list)
+  (METHODS::has-cell-member-aux ?x ?y 1 $?list)
+)
+
+(deffunction METHODS::has-cell-member-aux (?x ?y ?index $?list)
+  (if (> ?index (- (length$ $?list) 1))
+    then
+      (return FALSE)
+  )
+  (bind ?first (nth$ ?index ?list))
+  (bind ?second (nth$ (+ ?index 1) $?list))
+  (if (and (= ?x ?first) (= ?y ?second))
+    then
+      (return TRUE)
+    else
+      (METHODS::has-cell-member-aux ?x ?y (+ ?index 2) $?list)
+  )
+)
+
+(deffunction METHODS::assert-all-safe ( ?index $?safe-list)
+  (if (<= ?index (-(length$ $?safe-list) 1)) 
+    (assert (MAIN::safe 
+                  (nth$ ?index $?safe-list)
+                  (nth$ (+ ?index 1) $?safe-list)
+            )
+    )
+    (METHODS::assert-all-safe (+ ?index 2) $?safe-list)
+  )
+)
+
+(defmodule MINE)
+(defmodule INIT)
+(deftemplate MAIN::cell
+  (slot x)
+  (slot y)
+  (slot v)
+  (multislot viz-flags)
+  (multislot viz-safe)
+  (multislot viz-closed)
+)
+
+(defmodule FLAG)
+
+;;;;;;;;;;;;;;;;;;;;;;;; MINE MODULE
+(set-current-module MINE)
+
+(deftemplate MAIN::fechada
+  (slot x)
+  (slot y)
+  (multislot adj)
+)
+
+(deffacts tag-escolhe
+  (escolhe-prox)
+)
+
+
+
+(deffunction randInterval (?min ?max)
+(+ ?min (mod (random) (- (+ 1 ?max) ?min))))
+
+;;First shot is totally blind
+(defrule initial
+  ?z    <- (MAIN::initial-fact)
+  ?out  <- (escolhe-prox)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  =>
+  (printout t "Woofy the dog is going to save your garden. Fette Atencion!" crlf)
+  (printout t "Fette Atencion Monsieur!" crlf)
+  (retract ?out)
+  (retract ?z)
+  (assert (escolhe-prox) (novas-bandeiras) 
+        (escolhe (x (randInterval ?minx ?maxx)) 
+                 (y (randInterval ?miny ?maxy))))
+  (assert (MINE::run-algorithm))
+  (return)
+)
+
+;;Other shots are planned
+(defrule setup
+  ?z <- (MINE::run-algorithm)
+  ?out  <- (escolhe-prox)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  =>
+  (retract ?z)
+  (printout t "Woofy is carefully inspecting...")
+  (assert (MAIN::flags (create$)))
+  (assert (INIT::go_to))
+)
+
+;;RECEBE TRIGGER PARA PLAY
+(defrule prepare
+  (declare (auto-focus TRUE))
+  ?z <- (MINE::prepare-play)
+  =>
+  (retract ?z)
+  (assert (MINE::play))
+)
+
+;;PREPARA FACTOS PARA JOGADA
+;;SUPER CLICK
+(defrule pre-play-mega-clic
+  (declare (salience 4))
+  (MINE::play)
+
+  (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+              (viz-safe $?csafe&:(= (length$ $?csafe) (* ?vc 2)))
+              (viz-closed $?cclosed)
+  )
+  (not
+    (exists (MAIN::cell (x ?xc2) (y ?yc2) (v ?vc2)
+              (viz-safe $?csafe2&:(= (length$ $?csafe2) (* ?vc 2)))
+              (viz-closed $?cclosed2&:(> (length$ $?cclosed2) (length$ $?cclosed)))
+            )
+    )
+  )
+  (not (exists (MAIN::super ?xc ?yc)))
+  (not (exists (MAIN::jogada ? ?)))
+  =>
+  (printout t "SUPER!!!" crlf)
+  (assert (MAIN::super ?xc ?yc))
+  (assert (MAIN::jogada ?xc ?yc))
+)
+(defrule pre-play
+  (declare (salience 3))
+  (MINE::play)
+
+  (MAIN::safe ?xs ?ys)
+  (not (exists (MAIN::jogada ? ?)))
+  =>
+  (assert (MAIN::jogada ?xs ?ys))
+)
+
+;;REUNE FLAGS
+(defrule gather-flags
+  (declare (salience 3))
+  (MINE::play)
+
+  ?z <- (MAIN::flags $?flags)
+  (MAIN::flag ?x ?y)
+  (test
+    (not(METHODS::has-cell-member ?x ?y $?flags))
+  )
+  =>
+  (retract ?z)
+  (assert (MAIN::flags $?flags ?x ?y))
+)
+
+
+;;REMOVER FACTOS USED
+(defrule remove-fechadas
+  (declare (salience 2))
+  (MINE::play)
+  ?z <- (MAIN::fechada (x ?x))
+  =>
+  (retract ?z)
+)
+(defrule remove-cells
+  (declare (salience 2))
+  (MINE::play)
+  ?z <- (MAIN::cell (x ?x))
+  =>
+  (retract ?z)
+)
+(defrule remove-safe
+  (declare (salience 2))
+  (MINE::play)
+  ?z <- (MAIN::safe ? ?)
+  =>
+  (retract ?z)
+)
+
+
+(defrule remove-others
+  (declare (salience 2))
+  (MINE::play)
+  ?x <- (FLAG::flag)
+  ?y <- (INIT::go_to)
+  =>
+  (retract ?y)
+  (retract ?x)
+)
+
+
+
+;;PLAY ACERTIVO
+(defrule play
+  (declare (salience 1))
+  ?p <- (MINE::play)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  ?x <- (MAIN::flags $?flags)
+  ?z <- (MAIN::jogada ?xf ?yf)
+  =>
+  (printout t "Woof Woof!" crlf)
+  (retract ?p)
+  (retract ?z)
+  (retract ?x)
+  (assert (escolhe-prox) (novas-bandeiras $?flags) 
+        (escolhe (x ?xf) 
+                 (y ?yf)))
+  (assert (MINE::run-algorithm))
+  (return)
+)
+
+;;FINISH GAME
+(defrule play-finish
+  (declare (salience 1))
+  ?p <- (MINE::play)
+  (MAIN::minas ?n)
+  (MAIN::flags $?flags&:(= (length$ $?flags) ?n))
+  =>
+  (printout t "playing thousand" crlf)
+  (assert (escolhe-prox) (novas-bandeiras $?flags) 
+        (escolhe (x 1000) 
+                 (y 1000)))
+)
+
+;;PLAY RANDOM
+(defrule rand-play
+  (declare (salience 1))
+  ?p <- (MINE::play)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  ?x <- (MAIN::flags $?flags)
+  (not (exists(MAIN::jogada ? ?)))
+  =>
+  (printout t "Woof Woof!" crlf)
+  (retract ?p)
+  (retract ?x)
+  (assert (escolhe-prox) (novas-bandeiras) 
+        (escolhe (x (randInterval ?minx ?maxx)) 
+                 (y (randInterval ?miny ?maxy))))
+  (assert (MINE::run-algorithm))
+  (return)
+)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;INIT
+(set-current-module INIT)
+(defrule setup
+  (declare (auto-focus TRUE))
+  ?z <- (go_to)
+  =>
+  (printout t "INIT::setting up" crlf)
+  (assert (generate-fechadas-and-delete))
+)
+
+;;GERA CLOSED
+(defrule generate-fechadas
+  ?z <- (generate-fechadas-and-delete)
+  (mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  =>
+  (bind ?i ?minx)
+  (while (<= ?i ?maxx) do
+    (bind ?j ?miny)
+    (while (<= ?j ?maxy) do
+      (assert (MAIN::fechada (x ?i) (y ?j) (adj (create$))))
+      (bind ?j (+ ?j 1))
+    )
+    (bind ?i (+ ?i 1))
+  )
+  (retract ?z)
+  (assert (parse-generated-fechadas))
+)
+
+;;LIMPA FECHADAS INEXISTENTES
+(defrule delete-fechadas
+  (declare (salience 2))
+  (parse-generated-fechadas)
+  (MAIN::aberta (x ?x) (y ?y))
+  ?z <- (MAIN::fechada (x ?x) (y ?y))
+  =>
+  (retract ?z)
+)
+
+;;GERAR CELL PARA CADA ABERTA
+(defrule generate-viz
+  (declare (salience 2))
+  (parse-generated-fechadas)
+  (MAIN::aberta (x ?x) (y ?y) (valor ?v&:(> ?v 0)))
+  =>
+  (assert (MAIN::cell (x ?x) (y ?y) (v ?v) (viz-closed (create$)) (viz-safe (create$)) (viz-flags (create$))))
+)
+
+;;GERAR 
+(defrule fill-vizs
+  (declare (salience 1))
+  (parse-generated-fechadas)
+  (MAIN::fechada (x ?xh) (y ?yh))
+  ?z <- (MAIN::cell (x ?x) (y ?y) 
+          (viz-closed $?vl)
+        )
+  (test (METHODS::viz ?xh ?yh ?x ?y))
+  (test (not(METHODS::has-cell-member ?xh ?yh $?vl )))
+  =>
+  (modify ?z (viz-closed $?vl ?xh ?yh))
+)
+
+;;passa fluxo para mine
+(defrule pass
+  (declare (salience 0))
+  ?z <- (parse-generated-fechadas)
+  =>
+  (retract ?z)
+  (assert (FLAG::go_to))
+)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; MODD FLAG
+;;TRIGGER PARA FASE DE FLAGGING
+(defrule FLAG::setup
+  (declare (auto-focus TRUE))
+  ?z <- (FLAG::go_to)
+  =>
+  (retract ?z)
+  (assert (FLAG::flag))
+)
+
+;; COLOCA FLAGS EVIDENTES
+(defrule set-evident-flag
+  (declare (salience 2))
+  (FLAG::flag)
+  (MAIN::fechada (x ?xf) (y ?yf))
+  ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+          (viz-closed $?cclosed)
+          (viz-flags $?cflags)
+        )
+  (test
+    (and
+      (METHODS::viz ?xf ?yf ?xc ?yc)
+      (= (length$ $?cclosed) (* ?vc 2))
+      (not(METHODS::has-cell-member ?xf ?yf $?cflags))
+    )
+  )
+  =>
+  (assert (MAIN::flag ?xf ?yf))
+  (modify ?c (viz-flags $?cflags ?xf ?yf))
+)
+
+;; COLOCA FLAGS
+(defrule set-flags
+  (declare (salience 2))
+  (FLAG::flag)
+  (MAIN::flag ?xf ?yf)
+  ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+          (viz-closed $?cclosed)
+          (viz-flags $?cflags)
+        )
+  (test
+    (and
+      (METHODS::viz ?xf ?yf ?xc ?yc)
+      (not(METHODS::has-cell-member ?xf ?yf $?cflags))
+    )
+  )
+  =>
+  (modify ?c (viz-flags $?cflags ?xf ?yf))
+)
+
+;; CALCULATED FLAGS
+(defrule set-calculated-flags
+  (declare (salience 2))
+  (FLAG::flag)
+  (MAIN::fechada (x ?xf) (y ?yf))
+  ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+          (viz-closed $?cclosed)
+          (viz-flags $?cflags)
+          (viz-safe $?csafe)
+        )
+  (test
+    (and
+      (METHODS::viz ?xf ?yf ?xc ?yc)
+      (= (- (length$ $?cclosed) (length$ $?csafe) ) (* ?vc 2))
+      (not(METHODS::has-cell-member ?xf ?yf $?csafe))
+      (not(METHODS::has-cell-member ?xf ?yf $?cflags))
+    )
+  )
+  =>
+  (assert (MAIN::flag ?xf ?yf))
+  (modify ?c (viz-flags $?cflags ?xf ?yf))
+)
+
+
+;; COLOCA SAFES
+(defrule set-safes
+  (declare (salience 2))
+  (FLAG::flag)
+  (MAIN::fechada (x ?xf) (y ?yf))
+  ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+          (viz-closed $?cclosed)
+          (viz-flags $?cflags)
+          (viz-safe $?csafe)
+        )
+  (test
+    (and
+      (= (length$ $?cflags) (* ?vc 2))
+      (not(METHODS::has-cell-member ?xf ?yf $?csafe))
+      (not(METHODS::has-cell-member ?xf ?yf $?cflags))
+      (METHODS::viz ?xf ?yf ?xc ?yc)
+    )
+  )
+  =>
+  (assert (MAIN::safe ?xf ?yf))
+  (modify ?c (viz-safe $?csafe ?xf ?yf))
+)
+
+;; COLOCA SAFE EM ADJANCENTES
+(defrule set-side-safes
+  (declare (salience 2))
+  (FLAG::flag)
+  (MAIN::safe ?xs ?ys)
+  ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+          (viz-closed $?cclosed)
+          (viz-safe $?csafe)
+          (viz-flags $?cflags)
+        )
+  (test
+    (and
+      (METHODS::viz ?xs ?ys ?xc ?yc)
+      (not(METHODS::has-cell-member ?xs ?ys $?csafe))
+      (not(METHODS::has-cell-member ?xs ?ys $?cflags))
+    )
+  )
+  =>
+  (modify ?c (viz-safe $?csafe ?xs ?ys))
+)
+
+(defrule pass
+  (declare (salience 1))
+  (FLAG::flag)
+  =>
+  (printout t "gonna play" crlf)
+  (assert (MINE::play))
+)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;FINAL MESSAGE
+(printout t "O FIM de mineX18.jess" crlf)

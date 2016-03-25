@@ -149,8 +149,8 @@ to clic [x y flags]
     [ask patch x y [watch-me display wait atraso ifelse any? grass-squares-here
                    [clica-relva show "RELVA"]
                    [clica-aberto show "Numero"]]]
- if count mines = count markers and all? markers [any? mines-here]
-     [set game-over? true]
+ ;if count mines = count markers and all? markers [any? mines-here]
+ ;    [set game-over? true]
  
 end
 
@@ -289,7 +289,7 @@ mine-count
 mine-count
 1
 300
-12
+1
 1
 1
 NIL

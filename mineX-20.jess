@@ -123,15 +123,10 @@
   (declare (salience 3))
   (MINE::play)
 
-  (MAIN::clean ?xc ?yc)
-  (MAIN::fechada (x ?xf) (y ?yf))
-  (not (MAIN::flag ?xf ?yf))
-  (test
-    (METHODS::viz ?xf ?yf ?xc ?yc)
-  )
+  (MAIN::safe ?xs ?ys)
   (not (exists (MAIN::jogada ? ?)))
   =>
-  (assert (MAIN::jogada ?xf ?yf))
+  (assert (MAIN::jogada ?xs ?ys))
 )
 
 ;;REUNE FLAGS
@@ -158,13 +153,22 @@
   =>
   (retract ?z)
 )
-(defrule remove-fechadas-clean
+(defrule remove-cells
   (declare (salience 2))
   (MINE::play)
-  ?z <- (MAIN::fechada-clean ? ?)
+  ?z <- (MAIN::cell (x ?x))
   =>
   (retract ?z)
 )
+(defrule remove-safe
+  (declare (salience 2))
+  (MINE::play)
+  ?z <- (MAIN::safe ? ?)
+  =>
+  (retract ?z)
+)
+
+
 (defrule remove-others
   (declare (salience 2))
   (MINE::play)
@@ -175,20 +179,6 @@
   (retract ?x)
 )
 
-(defrule remove-clean
-  (declare (salience 2))
-  (MINE::play)
-  ?z <- (MAIN::clean ? ?)
-  =>
-  (retract ?z)
-)
-(defrule remove-flags
-  (declare (salience 2))
-  (MINE::play)
-  ?z <- (MAIN::flag ? ?)
-  =>
-  (retract ?z)
-)
 
 
 ;;PLAY ACERTIVO
@@ -322,162 +312,112 @@
   (assert (FLAG::flag))
 )
 
-;;FLAG MAIS OBVIAS
-(defrule flag
-  (declare (salience 4))
-  (FLAG::flag)
-  (MAIN::fechada (x ?xf) (y ?yf))
-  ?z <- (MAIN::cell
-          (x ?x) (y ?y) (v ?v)
-          (viz-closed $?closed)
-          (viz-flags $?flags)
-        )
-  (test
-    (= (length$ $?closed) (* ?v 2))
-  )
-  (test
-    (METHODS::has-cell-member ?xf ?yf $?closed)
-  )
-  (test
-    (not(METHODS::has-cell-member ?xf ?yf ?flags))
-  )
-  =>
-  (modify ?z (viz-flags $?flags ?xf ?yf))
-  (assert (MAIN::flag ?xf ?yf))
-)
-
-;;CADA CELL DEVE TER A SUA PROPRIA LISTA
-;;DE FLAGS ADJANCENTES
-;;ESTE METODO SERVE PARA ISSO
-(defrule set-side-flags
-  (declare (salience 4))
-  (FLAG::flag)
-  (MAIN::flag ?xf ?yf)
-  ?z <- (MAIN::cell
-          (x ?x) (y ?y) (v ?v)
-          (viz-closed $?closed)
-          (viz-flags $?flags)
-          (viz-safe $?safe)
-        )
-  (test
-    (METHODS::has-cell-member ?xf ?yf $?closed)
-  )
-  (test
-    (and
-    (not(METHODS::has-cell-member ?xf ?yf $?flags))
-    (not(METHODS::has-cell-member ?xf ?yf $?safe))
-    )
-  )
-  =>
-  (modify ?z (viz-flags $?flags ?xf ?yf))
-)
-
-;;INSERE SAFES EM CADA CELL
-(defrule set-safe
-  (declare (salience 3))
-  (FLAG::flag)
-  (MAIN::cell (x ?x) (y ?y) (v ?v) 
-              (viz-flags $?flags)
-              (viz-flags $?closed) 
-  )
-  (test (= 
-          (/ (length$ $?flags) 2)
-          ?v
-        )
-  )
-  =>
-  (assert (MAIN::clean ?x ?y))
-)
-
-;; CADA CLEAN INSERIDA ESCREVE AS FECHADAS
-;; SUAS ADJANCENTES COMO FECHADA-SAFE
-(defrule set-fechadas-safe
-  (declare (salience 3))
-  (FLAG::flag)
-  (MAIN::clean ?xc ?yc)
-  (MAIN::fechada (x ?xfc) (y ?yfc))
-  (test
-    (METHODS::viz ?xc ?yc ?xfc ?yfc)
-  )
-  (not(MAIN::fechada-clean ?xfc ?yfc))
-  =>
-  (assert (MAIN::fechada-clean ?xfc ?yfc))
-)
-
-(defrule set-recursive-safe-of-cell
-  (declare (salience 3))
-  (FLAG::flag)
-  (MAIN::fechada-clean ?xfc ?yfc)
-  ?z <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
-          (viz-safe $?safe)
-          (viz-flags $?flags)
-          (viz-closed $?closed)
-        )
-  (test
-    (and
-      (not(METHODS::has-cell-member ?xfc ?yfc $?safe))
-      (not(METHODS::has-cell-member ?xfc ?yfc $?flags))
-      (METHODS::has-cell-member ?xfc ?yfc $?closed)
-    )
-  )
-  =>
-  (modify ?z (viz-safe $?safe ?xfc ?yfc))
-)
-
-(defrule set-safe-around
-  (declare (salience 3))
-  (FLAG::flag)
-  (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
-          (viz-safe $?safe)
-          (viz-flags $?flags)
-          (viz-closed $?closed)
-        )
-  (test
-    (= 
-      (- (length$ $?closed) (+ (length$ $?safe) (length$ $?flags)))
-      (* ?vc 2)
-    )
-  )
-  (not(exists(MAIN::safe-around ?xc ?yc)))
-  =>
-  (assert (MAIN::safe-around ?xc ?yc))
-)
-
-(defrule set-fechada-clean-based-on-safe-around
-  (declare (salience 3))
-  (FLAG::flag)
-  (MAIN::safe-around ?xs ?ys)
-  (MAIN::fechada (x ?xf) (y ?yf))
-  (test
-    (METHODS::viz ?xs ?ys ?xf ?yf)
-  )
-  =>
-  (assert (MAIN::fechada-clean ?xf ?yf))
-)
-
-(defrule set-recursive-flagsss
+;; COLOCA FLAGS EVIDENTES
+(defrule set-evident-flag
   (declare (salience 2))
   (FLAG::flag)
-  (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
-          (viz-safe $?safe)
-          (viz-flags $?flags)
-          (viz-closed $?closed)
+  (MAIN::fechada (x ?xf) (y ?yf))
+  ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+          (viz-closed $?cclosed)
+          (viz-flags $?cflags)
         )
   (test
-    (= 
-      (- (length$ $?closed) (length$ $?safe))
-      (* ?vc 2)
+    (and
+      (METHODS::viz ?xf ?yf ?xc ?yc)
+      (= (length$ $?cclosed) (* ?vc 2))
+      (not(METHODS::has-cell-member ?xf ?yf $?cflags))
     )
   )
-  (test
-    (not(=
-      (length$ $?flags)
-      (* ?vc 2)
-    ))
-  )
-  (not(exists(MAIN::set-flag ?xc ?yc)))
   =>
-  (assert (MAIN::set-flag ?xc ?yc (- (length$ $?closed) (length$ $?safe))))
+  (assert (MAIN::flag ?xf ?yf))
+  (modify ?c (viz-flags $?cflags ?xf ?yf))
+)
+
+;; COLOCA FLAGS
+(defrule set-flags
+  (declare (salience 2))
+  (FLAG::flag)
+  (MAIN::flag ?xf ?yf)
+  ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+          (viz-closed $?cclosed)
+          (viz-flags $?cflags)
+        )
+  (test
+    (and
+      (METHODS::viz ?xf ?yf ?xc ?yc)
+      (not(METHODS::has-cell-member ?xf ?yf $?cflags))
+    )
+  )
+  =>
+  (modify ?c (viz-flags $?cflags ?xf ?yf))
+)
+
+;; CALCULATED FLAGS
+(defrule set-calculated-flags
+  (declare (salience 2))
+  (FLAG::flag)
+  (MAIN::fechada (x ?xf) (y ?yf))
+  ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+          (viz-closed $?cclosed)
+          (viz-flags $?cflags)
+          (viz-safe $?csafe)
+        )
+  (test
+    (and
+      (METHODS::viz ?xf ?yf ?xc ?yc)
+      (= (- (length$ $?cclosed) (length$ $?csafe) ) (* ?vc 2))
+      (not(METHODS::has-cell-member ?xf ?yf $?csafe))
+      (not(METHODS::has-cell-member ?xf ?yf $?cflags))
+    )
+  )
+  =>
+  (assert (MAIN::flag ?xf ?yf))
+  (modify ?c (viz-flags $?cflags ?xf ?yf))
+)
+
+
+;; COLOCA SAFES
+(defrule set-safes
+  (declare (salience 2))
+  (FLAG::flag)
+  (MAIN::fechada (x ?xf) (y ?yf))
+  ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+          (viz-closed $?cclosed)
+          (viz-flags $?cflags)
+          (viz-safe $?csafe)
+        )
+  (test
+    (and
+      (= (length$ $?cflags) (* ?vc 2))
+      (not(METHODS::has-cell-member ?xf ?yf $?csafe))
+      (not(METHODS::has-cell-member ?xf ?yf $?cflags))
+      (METHODS::viz ?xf ?yf ?xc ?yc)
+    )
+  )
+  =>
+  (assert (MAIN::safe ?xf ?yf))
+  (modify ?c (viz-safe $?csafe ?xf ?yf))
+)
+
+;; COLOCA SAFE EM ADJANCENTES
+(defrule set-side-safes
+  (declare (salience 2))
+  (FLAG::flag)
+  (MAIN::safe ?xs ?ys)
+  ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+          (viz-closed $?cclosed)
+          (viz-safe $?csafe)
+          (viz-flags $?cflags)
+        )
+  (test
+    (and
+      (METHODS::viz ?xs ?ys ?xc ?yc)
+      (not(METHODS::has-cell-member ?xs ?ys $?csafe))
+      (not(METHODS::has-cell-member ?xs ?ys $?cflags))
+    )
+  )
+  =>
+  (modify ?c (viz-safe $?csafe ?xs ?ys))
 )
 
 (defrule pass

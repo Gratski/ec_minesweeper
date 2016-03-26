@@ -124,9 +124,11 @@
   (declare (salience 4))
   (MINE::play)
 
+  (MAIN::nova-flag ?xx ?yy)
   (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
               (viz-safe $?csafe&:(= (length$ $?csafe) (* ?vc 2)))
               (viz-closed $?cclosed)
+              (viz-flags $?cflags&:(not(METHODS::has-cell-member ?xx ?yy $?cflags)))
   )
   (not
     (exists (MAIN::cell (x ?xc2) (y ?yc2) (v ?vc2)
@@ -135,6 +137,7 @@
             )
     )
   )
+  
   (not (exists (MAIN::super ?xc ?yc)))
   (not (exists (MAIN::jogada ? ?)))
   =>
@@ -158,12 +161,14 @@
   (MINE::play)
 
   ?z <- (MAIN::flags $?flags)
-  (MAIN::flag ?x ?y)
+  ?f <- (MAIN::nova-flag ?x ?y)
   (test
     (not(METHODS::has-cell-member ?x ?y $?flags))
   )
   =>
+  (assert (MAIN::flag ?x ?y))
   (retract ?z)
+  (retract ?f)
   (assert (MAIN::flags $?flags ?x ?y))
 )
 
@@ -181,6 +186,13 @@
   (declare (salience 2))
   (MINE::play)
   ?z <- (MAIN::safe ? ?)
+  =>
+  (retract ?z)
+)
+(defrule remove-cells
+  (declare (salience 2))
+  (MINE::play)
+  ?z <- (MAIN::cell (x ?))
   =>
   (retract ?z)
 )
@@ -345,8 +357,9 @@
       (not(METHODS::has-cell-member ?xf ?yf $?cflags))
     )
   )
+  (not(exists(MAIN::flag ?xf ?yf)))
   =>
-  (assert (MAIN::flag ?xf ?yf))
+  (assert (MAIN::nova-flag ?xf ?yf))
   (modify ?c (viz-flags $?cflags ?xf ?yf))
 )
 
@@ -354,7 +367,7 @@
 (defrule set-flags
   (declare (salience 2))
   (FLAG::flag)
-  (MAIN::flag ?xf ?yf)
+  (MAIN::nova-flag ?xf ?yf)
   ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
           (viz-closed $?cclosed)
           (viz-flags $?cflags)
@@ -388,7 +401,7 @@
     )
   )
   =>
-  (assert (MAIN::flag ?xf ?yf))
+  (assert (MAIN::nova-flag ?xf ?yf))
   (modify ?c (viz-flags $?cflags ?xf ?yf))
 )
 

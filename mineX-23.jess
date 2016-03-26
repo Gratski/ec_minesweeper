@@ -7,7 +7,22 @@
     (abs (- ?yh ?yb))
   )
 )
-
+(deffunction METHODS::is-viz-of-any (?x ?y $?list)
+  (METHODS::is-viz-of-any-aux 1 ?x ?y $?list)
+)
+(deffunction METHODS::is-viz-of-any-aux (?index ?x ?y $?list)
+  (if (>= ?index (length$ $?list)) 
+    then
+      (return FALSE)
+    else
+      (if (METHODS::viz ?x ?y (nth$ ?index $?list) (nth$ (+ ?index 1) $?list))
+        then  
+          (return TRUE)
+        else
+          (METHODS::is-viz-of-any-aux (+ ?index 2) ?x ?y $?list)
+      )
+  )
+)
 ;;verifica se duas casas sao vizinhas
 (deffunction METHODS::viz (?xh ?yh ?xb ?yb)
   (or
@@ -115,6 +130,7 @@
   ?z <- (MINE::prepare-play)
   =>
   (retract ?z)
+  (assert (MAIN::novas-flags (create$)))
   (assert (MINE::play))
 )
 
@@ -124,20 +140,26 @@
   (declare (salience 4))
   (MINE::play)
 
-  (MAIN::nova-flag ?xx ?yy)
+  (MAIN::novas-flags $?novas)
   (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
               (viz-safe $?csafe&:(= (length$ $?csafe) (* ?vc 2)))
-              (viz-closed $?cclosed)
-              (viz-flags $?cflags&:(not(METHODS::has-cell-member ?xx ?yy $?cflags)))
+              (viz-closed $?cclosed&:(> (length$ $?cclosed) 2))
   )
   (not
-    (exists (MAIN::cell (x ?xc2) (y ?yc2) (v ?vc2)
-              (viz-safe $?csafe2&:(= (length$ $?csafe2) (* ?vc 2)))
+    (or
+      (exists (MAIN::cell (x ?xc2&:(not(= ?xc ?xc2))) (y ?yc2) (v ?vc2)
+              (viz-safe $?csafe2&:(= (length$ $?csafe2) (* ?vc2 2)))
               (viz-closed $?cclosed2&:(> (length$ $?cclosed2) (length$ $?cclosed)))
             )
+      )
+      (exists (MAIN::cell (x ?xc2) (y ?yc2&:(not(= ?yc ?yc2))) (v ?vc2)
+              (viz-safe $?csafe2&:(= (length$ $?csafe2) (* ?vc2 2)))
+              (viz-closed $?cclosed2&:(> (length$ $?cclosed2) (length$ $?cclosed)))
+            )
+      )
     )
   )
-  
+  (not(METHODS::is-viz-of-any ?xc ?yc $?novas))
   (not (exists (MAIN::super ?xc ?yc)))
   (not (exists (MAIN::jogada ? ?)))
   =>
@@ -157,11 +179,12 @@
 
 ;;REUNE FLAGS
 (defrule gather-flags
-  (declare (salience 3))
+  (declare (salience 5))
   (MINE::play)
 
   ?z <- (MAIN::flags $?flags)
   ?f <- (MAIN::nova-flag ?x ?y)
+  ?n <- (MAIN::novas-flags $?novas)
   (test
     (not(METHODS::has-cell-member ?x ?y $?flags))
   )
@@ -169,7 +192,9 @@
   (assert (MAIN::flag ?x ?y))
   (retract ?z)
   (retract ?f)
+  (retract ?n)
   (assert (MAIN::flags $?flags ?x ?y))
+  (assert (MAIN::novas-flags $?novas ?x ?y))
 )
 
 
@@ -196,8 +221,6 @@
   =>
   (retract ?z)
 )
-
-
 (defrule remove-others
   (declare (salience 2))
   (MINE::play)
@@ -207,6 +230,14 @@
   (retract ?y)
   (retract ?x)
 )
+(defrule remove-novas
+  (declare (salience 2))
+  (MINE::play)
+  ?z <- (MAIN::novas-flags $?)
+  =>
+  (retract ?z)
+)
+
 
 
 
@@ -455,7 +486,7 @@
   (FLAG::flag)
   =>
   (printout t "gonna play" crlf)
-  (assert (MINE::play))
+  (assert (MINE::prepare-play))
 )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

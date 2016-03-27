@@ -169,7 +169,7 @@
   (MAIN::flags $?flags)
   (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
               (viz-flags $?cflags&:(= (length$ $?cflags) (* ?vc 2)))
-              (viz-closed $?cclosed&:(> (length$ $?cclosed) 2))
+              (viz-closed $?cclosed&:(> (length$ $?cclosed) (length$ $?cflags)))
   )
   (not
     (or

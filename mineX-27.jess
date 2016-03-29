@@ -1,0 +1,153 @@
+(printout t "Carregando versao 27" crlf)
+(defmodule SETUP)
+
+
+(deftemplate MAIN::cell
+  (slot x)
+  (slot y)
+  (slot v)
+  (multislot viz-closed)
+  (multislot viz-flags)
+  (multislot viz-safe)
+)
+
+;;;; MODULO METHODS
+(defmodule METHODS)
+(deffunction METHODS::manhattan (?xh ?yh ?xb ?yb)
+  (+
+    (abs (- ?xh ?xb))
+    (abs (- ?yh ?yb))
+  )
+)
+(deffunction METHODS::viz (?xh ?yh ?xb ?yb)
+  (or
+    (= (METHODS::manhattan ?xh ?yh ?xb ?yb ) 1)
+    ( and (= (- ?xb 1) ?xh ) (= (+ ?yb 1) ?yh )) ;;top left
+    ( and (= (+ ?xb 1) ?xh ) (= (+ ?yb 1) ?yh )) ;;top right
+    ( and (= (- ?xb 1) ?xh ) (= (- ?yb 1) ?yh )) ;;bottom left
+    ( and (= (+ ?xb 1) ?xh ) (= (- ?yb 1) ?yh )) ;;bottom right
+  )
+)
+(deffunction METHODS::is-viz-of-any (?x ?y $?list)
+  (METHODS::is-viz-of-any-aux 1 ?x ?y $?list)
+)
+(deffunction METHODS::is-viz-of-any-aux (?index ?x ?y $?list)
+  (if (>= ?index (length$ $?list)) 
+    then
+      (return FALSE)
+    else
+      (if (METHODS::viz ?x ?y (nth$ ?index $?list) (nth$ (+ ?index 1) $?list))
+        then  
+          (return TRUE)
+        else
+          (METHODS::is-viz-of-any-aux (+ ?index 2) ?x ?y $?list)
+      )
+  )
+)
+(deffunction METHODS::has-cell-member (?x ?y $?list)
+  (METHODS::has-cell-member-aux ?x ?y 1 $?list)
+)
+(deffunction METHODS::has-cell-member-aux (?x ?y ?index $?list)
+  (if (> ?index (- (length$ $?list) 1))
+    then
+      (return FALSE)
+  )
+  (bind ?first (nth$ ?index ?list))
+  (bind ?second (nth$ (+ ?index 1) $?list))
+  (if (and (= ?x ?first) (= ?y ?second))
+    then
+      (return TRUE)
+    else
+      (METHODS::has-cell-member-aux ?x ?y (+ ?index 2) $?list)
+  )
+)
+(deffunction METHODS::randInterval (?min ?max)
+(+ ?min (mod (random) (- (+ 1 ?max) ?min))))
+
+;;;; MODULO MINE
+(defmodule MINE)
+(deffacts tag-escolhe
+   (escolhe-prox))
+
+;;;; GETS NEW ACTION TRIGGER
+(defrule ui
+  ?out <- (escolhe-prox)
+  =>
+  (retract ?out)
+  (assert (SETUP::setup))
+)
+
+;;;; AFTER CALCULATIONS => PREPARE TO PLAY
+(defrule prepare-play
+  (declare (auto-focus TRUE))
+  (MINE::play)
+  (MAIN::fechada ?x ?y)
+  =>
+  (retract ?out)
+  (assert (MINE::ready-to-play))
+  (printout t "READY TO PLAY" crlf)
+)
+
+;;;; PLAY
+;;;;    RANDOM
+(defrule play-random
+  (declare (salience 0))
+  ?out <- (MINE::ready-to-play)
+  (mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  =>
+  (retract ?out)
+  (printout t "PLAYING RANDOM" crlf)
+  (assert (escolhe-prox) (novas-bandeiras) 
+        (escolhe (x (METHODS::randInterval ?minx ?maxx)) 
+                 (y (METHODS::randInterval ?miny ?maxy))))
+  (return)
+)
+
+
+;;;; MODULO SETUP
+(defrule SETUP::base-setup
+  (declare (auto-focus TRUE))
+  ?out <- (SETUP::setup)
+  (mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  =>
+  (retract ?out)
+  (printout t "Setting up..." crlf)
+  (for (bind ?i ?minx) (<= ?i ?maxx) (++ ?i)
+    (for (bind ?j ?miny) (<= ?j ?maxy) (++ ?j)
+      (assert (MAIN::fechada ?i ?j))
+    )  
+  )
+  (printout t "Generated fechadas" crlf)
+)
+
+(defrule SETUP::delete-incorrect-fechadas
+  (declare (salience 2))
+  ?out <- (MAIN::fechada ?x ?y)
+  (MAIN::aberta (x ?x) (y ?y))
+  =>
+  (retract ?out)
+)
+
+(defrule SETUP::generate-cell-for-aberta
+  (declare (salience 2))
+  (MAIN::aberta (x ?x) (y ?y) (valor ?v))
+  =>
+  (assert (MAIN:: cell (x ?x) (y ?y) (v ?v) 
+          (viz-closed (create$))
+          (viz-flags (create$))
+          (viz-safe (create$))
+          )
+  )
+)
+
+(defrule SETUP::pass-to-next
+  (declare (salience 0))
+  =>
+  (printout t "Passing to play" crlf)
+  (assert (MINE::play))
+)
+
+
+
+
+

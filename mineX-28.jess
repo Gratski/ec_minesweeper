@@ -63,17 +63,17 @@
     (METHODS::assert-all-safe (+ ?index 2) $?safe-list)
   )
 )
-
-
-(deffacts prepara
-  (jovens (create$))
-)
-(defrule insere-jovens
-  (estudante (name ?n) (idade ?i))
-  ?out <- (jovens $?lista)
-  =>
-  (retract ?out)
-  (assert (jovens $?lista ?n ?i))
+(deffunction METHODS::is-different (?x1 ?y1 ?x2 ?y2)
+  (if 
+    (or
+      (not(= ?x1 ?x2))
+      (not(= ?y1 ?y2))
+    ) 
+    then
+      (return TRUE)
+    else
+      (return FALSE)
+  )
 )
 
 (defmodule MINE)
@@ -148,7 +148,7 @@
 
 ;;REUNE FLAGS
 (defrule gather-flags
-  (declare (salience 5))
+  (declare (salience 6))
   (MINE::play)
 
   ?z <- (MAIN::flags $?flags)
@@ -173,7 +173,57 @@
 )
 
 ;;PREPARA FACTOS PARA JOGADA
-;;SUPER CLICK
+;;SUPER CLICK SMART
+(defrule pre-play-mega-clic-smart
+  (declare (salience 5))
+  (MINE::play)
+
+  (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+              (viz-flags $?cflags&:(= (length$ $?cflags) (* ?vc 2)))
+              (viz-closed $?cclosed&:(> (length$ $?cclosed) (length$ $?cflags)))
+  )
+
+  (MAIN::flags $?flags)
+  (not(METHODS::is-viz-of-any ?xc ?yc $?flags))
+
+  (MAIN::fechada (x ?xx) (y ?yy))
+  (MAIN::safe ?xx ?yy)
+  (test
+    (METHODS::viz ?xx ?yy ?xc ?yc)
+  )
+
+  (MAIN::fechada (x ?xxx) (y ?yyy))
+  (not(exists(MAIN::flag ?xxx ?yyy)))
+  (test
+    (and
+      (METHODS::is-different ?xxx ?yyy ?xx ?yy)
+      (METHODS::viz ?xxx ?yyy ?xx ?yy)
+    )
+  )
+
+  (not
+    (or
+      (exists (MAIN::cell (x ?xc2&:(not(= ?xc ?xc2))) (y ?yc2) (v ?vc2)
+              (viz-safe $?csafe2&:(= (length$ $?csafe2) (* ?vc2 2)))
+              (viz-closed $?cclosed2&:(> (length$ $?cclosed2) (length$ $?cclosed)))
+            )
+      )
+      (exists (MAIN::cell (x ?xc2) (y ?yc2&:(not(= ?yc ?yc2))) (v ?vc2)
+              (viz-safe $?csafe2&:(= (length$ $?csafe2) (* ?vc2 2)))
+              (viz-closed $?cclosed2&:(> (length$ $?cclosed2) (length$ $?cclosed)))
+            )
+      )
+    )
+  )
+  (not (exists (MAIN::super ?xc ?yc)))
+  (not (exists (MAIN::jogada ? ?)))
+  =>
+  (printout t "SUPER SMART!!!" crlf)
+  (assert (MAIN::super ?xc ?yc))
+  (assert (MAIN::jogada ?xc ?yc))
+)
+
+;;SUPER CLICK DUMM
 (defrule pre-play-mega-clic
   (declare (salience 4))
   (MINE::play)
@@ -201,11 +251,7 @@
   (not (exists (MAIN::jogada ? ?)))
   (not(METHODS::is-viz-of-any ?xc ?yc $?flags))
   =>
-  (printout t "SUPER!!!" crlf)
-  (printout t "PLAYED X:"?xc " Y:"?yc crlf)
-  (printout t "FLAGS LIST " $?cflags crlf)
-  (printout t "FLAGS DISCOVERED: " $?flags crlf)
-  (printout t "EH VIZ DE ALGUMA " (METHODS::is-viz-of-any ?xc ?yc $?flags) crlf)
+  (printout t "SUPER DUMM!!!" crlf)
   (assert (MAIN::super ?xc ?yc))
   (assert (MAIN::jogada ?xc ?yc))
 )

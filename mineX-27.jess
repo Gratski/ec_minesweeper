@@ -12,6 +12,29 @@
   (+ ?min (mod (random) (- (+ 1 ?max) ?min)))
 )
 
+(deffunction METHODS::complement ($?mega-list)
+  (bind ?result (create$))
+  (bind ?index 1)
+  (while (<= ?index (length$ $?mega-list)) do
+    (bind ?x (nth$ ?index $?mega-list))
+    (bind ?y (nth$ (+ ?index 1) $?mega-list))
+    (bind ?index_2 (+ ?index 2))
+    (while (<= ?index_2 (length$ $?mega-list)) do
+      (bind ?new_x (nth$ ?index_2 $?mega-list))
+      (bind ?new_y (nth$ (+ ?index_2 1) $?mega-list))
+      (if (and (= ?x ?new_x) (= ?y ?new_y))
+        then
+          (insert$ $?result ?x ?y)
+          (delete$ $?mega-list ?index_2 (+ ?index_2 1))
+          (bind ?index_2 10000)
+      )
+      (bind ?index_2 (+ ?index_2 2))
+    )
+    (bind ?index (+ ?index 2))
+  )
+  (return $?result)
+)
+
 (deffunction METHODS::is-viz-of-any (?x ?y $?list)
   (METHODS::is-viz-of-any-aux 1 ?x ?y $?list)
 )
@@ -71,7 +94,7 @@
   )
 )
 
-(deffunction METHODS::assert-all-safe ( ?index $?safe-list)
+(deffunction METHODS::assert-all-safe (?index $?safe-list)
   (if (<= ?index (-(length$ $?safe-list) 1)) 
     (assert (MAIN::safe 
                   (nth$ ?index $?safe-list)
@@ -121,6 +144,9 @@
   (assert (escolhe-prox) (novas-bandeiras) 
         (escolhe (x (METHODS::randInterval ?minx ?maxx)) 
                  (y (METHODS::randInterval ?miny ?maxy))))
+  (assert (MAIN::lista-abertas (create$)))
+  (assert (MAIN::lista-safes (create$)))
+  (assert (MAIN::lista-flags (create$)))
   (assert (MINE::run-algorithm))
   (return)
 )
@@ -133,7 +159,7 @@
   =>
   (retract ?z)
   (printout t "Woofy is carefully inspecting...")
-  (assert (MAIN::flags (create$)))
+  (assert (MAIN::flags-descobertas (create$)))
   (assert (INIT::go_to))
 )
 
@@ -152,17 +178,20 @@
   (declare (salience 5))
   (MINE::play)
 
-  ?z <- (MAIN::flags $?flags)
+  ?z <- (MAIN::flags-descobertas $?flags)
+  ?id <- (MAIN::lista-flags $?list_flags)
   ?f <- (MAIN::nova-flag ?x ?y)
   (test
     (not (METHODS::has-cell-member ?x ?y $?flags))
   )
-  (not(exists(MAIN::flag ?x ?y)))
+  (not (exists(MAIN::flag ?x ?y)))
   =>
   (assert (MAIN::flag ?x ?y))
   (retract ?z)
   (retract ?f)
-  (assert (MAIN::flags $?flags ?x ?y))
+  (retract ?id)
+  (assert (MAIN::flags-descobertas $?flags ?x ?y))
+  (assert (MAIN::lista-flags $?list_flags ?x ?y))
 )
 (defrule gather-flags-cleaner
   (declare (salience 5))
@@ -178,12 +207,14 @@
 (defrule pre-play-mega-clic
   (declare (salience 4))
   (MINE::play)
-
-  (MAIN::flags $?flags)
+  (MAIN::flags-descobertas $?flags)
   (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
               (viz-flags $?cflags&:(= (length$ $?cflags) (* ?vc 2)))
               (viz-closed $?cclosed&:(> (length$ $?cclosed) (length$ $?cflags)))
   )
+  (not (exists (MAIN::super ?xc ?yc)))
+  (not (exists (MAIN::jogada ? ?)))
+  (not (METHODS::is-viz-of-any ?xc ?yc $?flags))
   (not
     (or
       (exists (MAIN::cell (x ?xc2&:(not(= ?xc ?xc2))) (y ?yc2) (v ?vc2)
@@ -198,9 +229,6 @@
       )
     )
   )
-  (not (exists (MAIN::super ?xc ?yc)))
-  (not (exists (MAIN::jogada ? ?)))
-  (not (METHODS::is-viz-of-any ?xc ?yc $?flags))
   =>
   (printout t "SUPER!!!" crlf)
   (printout t "PLAYED X:"?xc " Y:"?yc crlf)
@@ -211,25 +239,88 @@
   (assert (MAIN::jogada ?xc ?yc))
 )
 
+
+;;;;;; GIANT MESS DOWN THERE:
+;;;;;;(num_closed_ajdacentes - flags_adjacentes - safes_adjacentes - valor) / (num_closed_ajdacentes - flags_adjacentes - safes_adjacentes)
+;;;;;;    tem de ser maior que
+;;;;;;(total_closed - total_safe - total_flags - (minas - total_flags)) / (total_closed - total_safe - total_flags)
+
 (defrule pre-probabilistic-play
   (declare (salience 3))
   (MINE::play)
   (not (exists(MAIN::safe ? ?)))
   (not (exists (MAIN::jogada ? ?)))
-  (MAIN::total-fechadas ?count)
-  (MAIN::minas ?minas)
-  (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
-        (viz-closed $?cclosed&:(>= (/ (length$ $?cclosed) (* ?vc 2)) (/ ?count ?minas)))
-  )
+  (MAIN::total-fechadas ?num_de_fechadas)
+  (MAIN::minas ?num_minas)
+  (MAIN::lista-flags $?total_flags)
+  (MAIN::lista-safes $?total_safes)
   (MAIN::fechada (x ?xf) (y ?yf))
   (not (MAIN::flag ?xf ?yf))
+
+  ;;;; SANTA MARIA MAE DE DEUS, ROGAI POR NOS PECADORES
+  (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+        (viz-flags $?flags)
+        (viz-safe $?safes)
+        (viz-closed $?cclosed&:
+          (>=
+            (/
+              (-
+                (-
+                  (-
+                    (/ (length$ $?cclosed) 2)
+                    (/ (length$ $?flags) 2)
+                  )
+                  (/ (length$ (METHODS::complement (create$ $?safes $?cclosed))) 2)
+                )
+                (- ?vc (/ (length$ $?flags) 2))
+              )
+              (-
+                (-
+                  (/ (length$ $?cclosed) 2)
+                  (/ (length$ $?flags) 2)
+                )
+                (/ (length$ (METHODS::complement (create$ $?safes $?cclosed))) 2)
+              )
+            )
+
+            (/
+              (- (- (- ?num_de_fechadas (/ (length$ $?total_safes) 2)) (/ (length$ $?total_flags) 2)) (- ?num_minas (/ (length$ $?total_flags) 2)))
+              (- (- ?num_de_fechadas (/ (length$ $?total_safes) 2)) (/ (length$ $?total_flags) 2))
+            )
+          )
+        )
+  )
   (test
     (METHODS::viz ?xf ?yf ?xc ?yc)
   )
   =>
   (assert (MAIN::jogada ?xf ?yf))
-  (printout t "PROBABILISTIC!!!" crlf)
-  (printout t (/ (* ?vc 2) (length$ $?cclosed))" is better than "(/ ?minas ?count) crlf)
+  (printout t "PROBABILISTIC!!! length de safes é" (/ (length$ $?total_safes) 2) " de " $?total_safes ". Além disso a length de todas as flags é: " (length$ $?total_flags) crlf)
+  (printout t "PROBABILISTIC!!! de " ?xf " " ?yf " com base em " ?xc " " ?yc crlf)
+  (printout t (/
+              (-
+                (-
+                  (-
+                    (/ (length$ $?cclosed) 2)
+                    (/ (length$ $?flags) 2)
+                  )
+                  (/ (length$ (METHODS::complement (create$ $?safes $?cclosed))) 2)
+                )
+                (- ?vc (/ (length$ $?flags) 2))
+              )
+              (-
+                (-
+                  (/ (length$ $?cclosed) 2)
+                  (/ (length$ $?flags) 2)
+                )
+                (/ (length$ (METHODS::complement (create$ $?safes $?cclosed))) 2)
+              )
+            ) " is better than " (/
+              (- (- (- ?num_de_fechadas (/ (length$ $?total_safes) 2)) (/ (length$ $?total_flags) 2)) (- ?num_minas (/ (length$ $?total_flags) 2)))
+              (- (- ?num_de_fechadas (/ (length$ $?total_safes) 2)) (/ (length$ $?total_flags) 2))
+            ) crlf)
+  (printout t "PROBABILISTIC!!! listas " $?safes " " $?cclosed crlf)
+  (printout t "PROBABILISTIC!!! de adjacentes = " (/ (length$ $?cclosed) 2) " - " (/ (length$ $?flags) 2) " - " (/ (length$ (METHODS::complement (create$ $?safes $?cclosed))) 2) " - " (- ?vc (/ (length$ $?flags) 2)) " SOBRE " (/ (length$ $?cclosed) 2) " - " (/ (length$ $?flags) 2) " - " (/ (length$ (METHODS::complement (create$ $?safes $?cclosed))) 2) crlf)
 )
 
 (defrule pre-play
@@ -295,7 +386,7 @@
   (declare (salience 0))
   ?p <- (MINE::play)
   (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
-  ?x <- (MAIN::flags $?flags)
+  ?x <- (MAIN::flags-descobertas $?flags)
   ?z <- (MAIN::jogada ?xf ?yf)
   =>
   (printout t "Woof Woof! ACERTIVO" crlf)
@@ -314,7 +405,7 @@
   (declare (salience 0))
   ?p <- (MINE::play)
   (MAIN::minas ?n)
-  (MAIN::flags $?flags&:(= (length$ $?flags) ?n))
+  (MAIN::lista-flags $?flags&:(= (/ (length$ $?flags) 2) ?n))
   =>
   (printout t "playing thousand" crlf)
   (assert (escolhe-prox) (novas-bandeiras $?flags) 
@@ -327,24 +418,22 @@
   (declare (salience 0))
   ?p <- (MINE::play)
   (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
-  ?x <- (MAIN::flags $?flags)
+  (MAIN::lista-flags $?flags)
   (MAIN::lista-abertas $?abertas)
-  (not (exists(MAIN::jogada ? ?)))
+  (MAIN::lista-safes $?safes)
+  (not (exists (MAIN::jogada ? ?)))
   =>
   (printout t "Woof Woof! RANDOM" crlf)
-  (retract ?p)
-  (retract ?x)
-  (bind ?flag-and-open (create$ $?flags $?abertas))
-  (bind ?rand_coor (METHODS::choose-random ?minx ?maxx ?miny ?maxy $?flag-and-open))
+  (bind ?flag-open-safe (create$ $?flags $?abertas $?safes))
+  (printout t $?flags crlf $?abertas)
+  (bind ?rand_coor (METHODS::choose-random ?minx ?maxx ?miny ?maxy $?flag-open-safe))
   (assert (escolhe-prox) (novas-bandeiras) 
         (escolhe (x (nth$ 1 ?rand_coor)) 
                  (y (nth$ 2 ?rand_coor))))
+  (retract ?p)
   (assert (MINE::run-algorithm))
   (return)
 )
-
-
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;INIT
 (set-current-module INIT)
@@ -373,7 +462,6 @@
   )
   (retract ?z)
   (assert (MAIN::total-fechadas (* (+ (* ?maxx 2) 1) (+ (* ?maxy 2) 1))))
-  (assert (MAIN::lista-abertas (create$)))
   (assert (parse-generated-fechadas))
 )
 
@@ -388,6 +476,18 @@
   (retract ?t)
   (retract ?z)
   (assert (MAIN::total-fechadas (- ?count 1)))
+)
+
+;;GERAR LISTA ABERTAS
+(defrule generate-abertas
+  (declare (salience 2))
+  (parse-generated-fechadas)
+  (MAIN::aberta (x ?x) (y ?y))
+  ?id <- (MAIN::lista-abertas $?abertas)
+  (test (not (METHODS::has-cell-member ?x ?y $?abertas)))
+=>
+  (retract ?id)
+  (assert (MAIN::lista-abertas $?abertas ?x ?y))
 )
 
 ;;GERAR CELL PARA CADA ABERTA
@@ -408,24 +508,14 @@
           (viz-closed $?vl)
         )
   (test (METHODS::viz ?xh ?yh ?x ?y))
-  (test (not(METHODS::has-cell-member ?xh ?yh $?vl )))
+  (test (not (METHODS::has-cell-member ?xh ?yh $?vl )))
   =>
   (modify ?z (viz-closed $?vl ?xh ?yh))
 )
 
-(defrule generate-abertas
-  (declare (salience 0))
-  (MAIN::aberta (x ?x) (y ?y))
-  ?id <- (MAIN::lista-abertas $?abertas)
-  (test (not (METHODS::has-cell-member ?x ?y $?abertas)))
-=>
-  (retract ?id)
-  (assert (MAIN::lista-abertas $?abertas ?x ?y))
-)
-
-;;passa fluxo para mine
+;;PASSA FLUXO PARA MINE
 (defrule pass
-  (declare (salience -1))
+  (declare (salience 0))
   ?z <- (parse-generated-fechadas)
   =>
   (retract ?z)
@@ -477,7 +567,7 @@
   (test
     (and
       (METHODS::viz ?xf ?yf ?xc ?yc)
-      (not(METHODS::has-cell-member ?xf ?yf $?cflags))
+      (not (METHODS::has-cell-member ?xf ?yf $?cflags))
     )
   )
   =>
@@ -521,14 +611,20 @@
   (test
     (and
       (= (length$ $?cflags) (* ?vc 2))
-      (not(METHODS::has-cell-member ?xf ?yf $?csafe))
-      (not(METHODS::has-cell-member ?xf ?yf $?cflags))
+      (not (METHODS::has-cell-member ?xf ?yf $?csafe))
+      (not (METHODS::has-cell-member ?xf ?yf $?cflags))
       (METHODS::viz ?xf ?yf ?xc ?yc)
     )
   )
+  ?id <- (MAIN::lista-safes $?safes)
   =>
   (assert (MAIN::safe ?xf ?yf))
   (modify ?c (viz-safe $?csafe ?xf ?yf))
+  (if (not (METHODS::has-cell-member ?xf ?yf $?safes))
+    then
+      (retract ?id)
+      (assert (MAIN::lista-safes $?safes ?xf ?yf))
+  )
 )
 
 ;; COLOCA SAFE EM ADJANCENTES

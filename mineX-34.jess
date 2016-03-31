@@ -397,6 +397,20 @@
   (printout t "PLAY" crlf)
 )
 
+;;termina
+(defrule play-finish
+  (declare(salience 6))
+  ?z <- (PLAY::focus)
+  (MAIN::minas ?minas)
+  (MAIN::flags $?flags&:(= (length$ $?flags) (* ?minas 2)))
+  =>
+  (retract ?z)
+  (printout t "PLAYED -> FINISH" crlf)
+  (assert (MINE::escolhe-prox) (novas-bandeiras $?flags) 
+        (escolhe (x 1000) 
+                 (y 1000)))
+  (return)
+)
 
 ;;definir aqui o super smart clic
 (defrule super-play
@@ -429,6 +443,31 @@
 )
 
 ;;definir aqui o single smart clic
+(defrule single-clic
+  (declare(salience 4))
+  ?z <- (PLAY::focus)
+  (MAIN::flags $?rflags)
+  
+  (MAIN::cell (x ?xc) (y ?yc) (v ?vc&:(> ?vc 0))
+              (viz-safe $? "C" ?xs ?ys $?))
+
+  (MAIN::fechada ?xf ?yf)
+  (not(exists(MAIN::flag ?xf ?yf)))
+  (not(exists(MAIN::safe ?xf ?yf)))
+
+  (test
+    (METHODS::viz ?xf ?yf ?xs ?ys)
+  )
+  =>
+  (retract ?z)
+  (printout t "PLAYED -> SINGLE" crlf)
+  (printout t "COORDS "?xs " "?ys crlf)
+  (assert (MINE::escolhe-prox) (novas-bandeiras $?rflags) 
+        (escolhe (x ?xs) 
+                 (y ?ys)))
+  (assert (MAIN::run))
+  (return)
+)
 
 ;;definir aqui o probabilistic clic
 

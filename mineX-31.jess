@@ -409,7 +409,7 @@
   (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
   =>
   (retract ?z)
-  (printout t $?flags crlf)
+  (printout t "PLAYED -> RANDOM" crlf)
   (assert (MINE::escolhe-prox) (novas-bandeiras $?flags) 
         (escolhe (x (randInterval ?minx ?maxx)) 
                  (y (randInterval ?miny ?maxy))))

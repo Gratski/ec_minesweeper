@@ -1,0 +1,611 @@
+(deftemplate MAIN::cell
+  (slot x)
+  (slot y)
+  (slot v)
+  (multislot viz-flags)
+  (multislot viz-safe)
+  (multislot viz-closed)
+)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                MODULES DEFINITION
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmodule PLAY)
+(defmodule SETUP)
+(defmodule FLAG)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                  METHODS MODULE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmodule METHODS)
+;;calcula a distancia de manhattan
+(deffunction METHODS::manhattan (?xh ?yh ?xb ?yb)
+  (+
+    (abs (- ?xh ?xb))
+    (abs (- ?yh ?yb))
+  )
+)
+;;verifica se duas casas sao vizinhas
+(deffunction METHODS::viz (?xh ?yh ?xb ?yb)
+  (or
+    (= (METHODS::manhattan ?xh ?yh ?xb ?yb ) 1)
+    (and (= (- ?xb 1) ?xh ) (= (+ ?yb 1) ?yh)) ;;top left
+    (and (= (+ ?xb 1) ?xh ) (= (+ ?yb 1) ?yh)) ;;top right
+    (and (= (- ?xb 1) ?xh ) (= (- ?yb 1) ?yh)) ;;bottom left
+    (and (= (+ ?xb 1) ?xh ) (= (- ?yb 1) ?yh)) ;;bottom right
+  )
+)
+(deffunction METHODS::is-viz-of-any (?x ?y $?list)
+  (METHODS::is-viz-of-any-aux 1 ?x ?y $?list)
+)
+(deffunction METHODS::is-viz-of-any-aux (?index ?x ?y $?list)
+  (if (>= ?index (length$ $?list)) 
+    then
+      (return FALSE)
+    else
+      (if (METHODS::viz ?x ?y (nth$ ?index $?list) (nth$ (+ ?index 1) $?list))
+        then  
+          (return TRUE)
+        else
+          (METHODS::is-viz-of-any-aux (+ ?index 2) ?x ?y $?list)
+      )
+  )
+)
+
+(deffunction METHODS::complement ($?mega-list)
+  (bind ?result (create$))
+  (bind ?index 2)
+  (while (<= ?index (length$ $?mega-list)) do
+    (bind ?x (nth$ ?index $?mega-list))
+    (bind ?y (nth$ (+ ?index 1) $?mega-list))
+    (bind ?index_2 (+ ?index 3))
+    (while (<= ?index_2 (length$ $?mega-list)) do
+      (bind ?new_x (nth$ ?index_2 $?mega-list))
+      (bind ?new_y (nth$ (+ ?index_2 1) $?mega-list))
+      (if (and (= ?x ?new_x) (= ?y ?new_y))
+        then
+          (insert$ $?result "C" ?x ?y)
+          (delete$ $?mega-list (- ?index_2 1) (+ ?index_2 1))
+          (bind ?index_2 10000)
+      )
+      (bind ?index_2 (+ ?index_2 3))
+    )
+    (bind ?index (+ ?index 3))
+  )
+  (return $?result)
+)
+
+;;verifica se duas casas nao sao a mesma
+(deffunction METHODS::is-different (?x1 ?y1 ?x2 ?y2)
+  (if 
+    (or
+      (not (= ?x1 ?x2))
+      (not (= ?y1 ?y2))
+    ) 
+    then
+      (return TRUE)
+    else
+      (return FALSE)
+  )
+)
+;;utilizado para gerar todas as possiveis adjacentes
+;;para uma dada posicao e o tabuleiro
+(deffunction METHODS::generate-all-vizs (?x ?y ?minx ?maxx ?miny ?maxy)
+  
+  (bind ?list (create$))
+
+  ;;se nao estah na fronteira esquerda
+  (if (> ?x ?minx) then
+    (bind ?list  (insert$ ?list 1 (create$ "C" (- ?x 1) ?y) ))
+  )
+  ;;se nao estah na fronteira esquerda nem fronteira topo
+  (if (and (> ?x ?minx) (< ?y ?maxy)) then
+    (bind ?list  (insert$ ?list 1 (create$ "C" (- ?x 1) (+ ?y 1)) ))
+  )
+  ;;se nao estah na fronteira esquerda nem bottom
+  (if (and (> ?x ?minx) (> ?y ?miny)) then
+    (bind ?list  (insert$ ?list 1 (create$ "C" (- ?x 1) (- ?y 1)) ))
+  )
+  ;;se nao estah na fronteira de topo
+  (if (< ?y ?maxy) then
+    (bind ?list  (insert$ ?list 1 (create$ "C" ?x (+ ?y 1)) ))
+  )
+  ;;se nao estah na fronteira de bottom
+  (if (> ?y ?miny) then
+    (bind ?list  (insert$ ?list 1 (create$ "C" ?x (- ?y 1)) ))
+  )
+  ;;se nao estah na fronteira direita
+  (if (< ?x ?maxx) then
+    (bind ?list  (insert$ ?list 1 (create$ "C" (+ ?x 1) ?y) ))
+  )
+  ;;se nao estah na fronteira direita nem topo
+  (if (and (< ?x ?maxx) (< ?y ?maxy) ) then
+    (bind ?list  (insert$ ?list 1 (create$ "C" (+ ?x 1) (+ ?y 1)) ))
+  )
+  ;;se nao estah na fronteira direita nem bottom
+  (if (and (< ?x ?maxx) (> ?y ?miny) ) then
+    (bind ?list  (insert$ ?list 1 (create$ "C" (+ ?x 1) (- ?y 1)) ))
+  )
+  (return ?list)
+)
+;;verifica se uma lista tem um dado elemento contando com o "C"
+(deffunction METHODS::has-cell-member (?x ?y $?list)
+  (METHODS::has-cell-member-aux ?x ?y 2 $?list)
+)
+(deffunction METHODS::has-cell-member-aux (?x ?y ?index $?list)
+  (if (> ?index (- (length$ $?list) 1))
+    then
+      (return FALSE)
+  )
+  (bind ?first (nth$ ?index ?list))
+  (bind ?second (nth$ (+ ?index 1) $?list))
+
+  (if (and (= ?x ?first) (= ?y ?second))
+    then
+      (return TRUE)
+    else
+      (METHODS::has-cell-member-aux ?x ?y (+ ?index 3) $?list)
+  )
+)
+;;verifica se uma lista tem um dado elemento contando com o "C"
+(deffunction METHODS::has-cell-member-b (?x ?y $?list)
+  (METHODS::has-cell-member-aux-b ?x ?y 1 $?list)
+)
+(deffunction METHODS::has-cell-member-aux-b (?x ?y ?index $?list)
+  (if (> ?index (- (length$ $?list) 1))
+    then
+      (return FALSE)
+  )
+  (bind ?first (nth$ ?index ?list))
+  (bind ?second (nth$ (+ ?index 1) $?list))
+
+  (if (and (= ?x ?first) (= ?y ?second))
+    then
+      (return TRUE)
+    else
+      (METHODS::has-cell-member-aux-b ?x ?y (+ ?index 2) $?list)
+  )
+)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                  MINE MODULE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmodule MINE)
+(deffacts tag-escolhe
+  (escolhe-prox)
+)
+(deffunction randInterval (?min ?max)
+  (+
+    ?min
+    (mod (random) (- (+ 1 ?max) ?min))
+  )
+)
+
+;;first play
+(defrule ui-starter
+  ?out <- (escolhe-prox)
+  (not (exists (MAIN::aberta (x ?))))
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  =>
+  (retract ?out)
+  (for (bind ?i ?minx) (<= ?i ?maxx) (++ ?i)
+    (for (bind ?j ?miny) (<= ?j ?maxy) (++ ?j)
+      (assert (MAIN::fechada ?i ?j))
+      (assert (MAIN::cell (x ?i) (y ?j) (v 0) 
+              (viz-closed (METHODS::generate-all-vizs ?i ?j ?minx ?maxx ?miny ?maxy))
+              (viz-safe (create$))
+              (viz-flags (create$))
+              )
+      )
+    )
+  )
+  (assert (MAIN::total-fechadas (* (+ (* ?maxx 2) 1) (+ (* ?maxy 2) 1) ) ))
+  (assert (MAIN::flags (create$)))
+  (assert (MAIN::safes (create$)))
+  (assert (escolhe-prox) (novas-bandeiras) 
+        (escolhe (x (randInterval ?minx ?maxx)) 
+                 (y (randInterval ?miny ?maxy))))
+  (printout t "============================" crlf)
+  ; (printout t "STARTER" crlf)
+  (return)
+)
+
+;;run solver algorithm
+(defrule ui-algorithm
+  ?out <- (escolhe-prox)
+  (exists(MAIN::aberta (x ?)))
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  =>
+  (retract ?out)
+  ; (printout t "RUN ALGORITHM" crlf)
+  (assert (SETUP::focus))
+)
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                  SETUP MODULE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set-current-module SETUP)
+(defrule focus-getter
+  (declare (auto-focus TRUE))
+  (SETUP::focus)
+  =>
+  ; (printout t "SETUP" crlf)
+)
+
+;;remove cell e fechada sempre que ha uma aberta
+(defrule cell-remove
+  (declare(salience 2))
+  (SETUP::focus)
+  (MAIN::aberta (x ?x) (y ?y) (valor ?v&:(= ?v 0)))
+  ?z <- (MAIN::cell (x ?x) (y ?y))
+  =>
+  (retract ?z)
+)
+(defrule fechada-remove
+  (declare(salience 2))
+  (SETUP::focus)
+  ?z <- (MAIN::fechada ?xf ?yf)
+  ?c <- (MAIN::total-fechadas ?total)
+  (exists (MAIN::aberta (x ?xf) (y ?yf)))
+  =>
+  (retract ?z)
+  (retract ?c)
+  (assert (MAIN::total-fechadas (- ?total 1)))
+)
+
+;;actualiza cells de acordo com info de board
+(defrule cell-value-update
+  (declare(salience 2))
+  (SETUP::focus)
+  (MAIN::aberta (x ?x) (y ?y) (valor ?v&:(not(= ?v 0))))
+  ?z <- (MAIN::cell (x ?x) (y ?y))
+  =>
+  (modify ?z (v ?v))
+)
+(defrule cell-closed-update
+  (declare(salience 2))
+  (SETUP::focus)
+  (MAIN::aberta (x ?x) (y ?y))
+  ?z <- (MAIN::cell (x ?xc) (y ?yc)
+          (viz-closed $?esq "C" ?x ?y $?dir)
+        )
+  =>
+  (modify ?z (viz-closed ?esq ?dir))
+)
+(defrule cell-safe-update
+  (declare (salience 2))
+  (SETUP::focus)
+  (MAIN::aberta (x ?x) (y ?y))
+  ?z <- (MAIN::cell (x ?xc) (y ?yc)
+          (viz-safe $?esq "C" ?x ?y $?dir)
+        )
+  =>
+  (modify ?z (viz-safe ?esq ?dir))
+)
+
+;;passa o fluxo para o module de flagging
+(defrule pass-to-flag
+  (declare (salience 0))
+  ?z <- (SETUP::focus)
+  =>
+  (retract ?z)
+  ; (printout t "PASSING TO FLAGGING" crlf)
+  (assert (FLAG::focus))
+)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                  FLAG MODULE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set-current-module FLAG)
+(defrule focus-getter
+  (declare (auto-focus TRUE))
+  (FLAG::focus)
+  =>
+  ; (printout t "FLAGGING" crlf )
+)
+
+;;coloca flags evidentes
+(defrule set-obvious-flags
+  (declare (salience 2))
+  (FLAG::focus)
+  (MAIN::cell (x ?xc) (y ?yc) (v ?vc&:(> ?vc 0))
+              (viz-closed $?esq "C" ?x ?y $?dir)
+  )
+  (MAIN::fechada ?x ?y)
+  (not (exists (MAIN::flag ?x ?y)))
+
+  (test
+    (= (length$ (create$ $?esq "C" ?x ?y $?dir) ) (* ?vc 3) )
+  )
+  ?f <- (MAIN::flags $?flags)
+  =>
+  ;;actualiza flags
+  (retract ?f)
+  (assert (MAIN::flag ?x ?y))
+  (assert (MAIN::flags $?flags ?x ?y))
+)
+
+;;coloca flags por afinidade
+(defrule set-side-flags
+  (declare (salience 1))
+  (FLAG::focus)
+  (MAIN::flag ?xf ?yf)
+  ?c <- (MAIN::cell (x ?xc) (y ?yc) (v ?vc&:(> ?vc 0))
+              (viz-closed $?esq "C" ?xf ?yf $?dir)
+              (viz-flags $?flags)
+        )
+  (test
+    (not (METHODS::has-cell-member ?xf ?yf $?flags))
+  )
+  =>
+  (modify ?c (viz-flags $?flags "C" ?xf ?yf))            
+)
+
+;;coloca flags por calculo
+(defrule set-calculated-flags
+  (declare (salience 1))
+  (FLAG::focus)
+
+  (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+              (viz-closed $?esq "C" ?x ?y $?dir)
+              (viz-safe $?safe)
+              (viz-flags $?cflags)
+  )
+  (not (exists (MAIN::flag ?x ?y)))
+  (not (exists (MAIN::safe ?x ?y)))
+  ?z <- (MAIN::flags $?total)
+  
+  (test
+    (=
+      (- (length$ (create$ $?esq "C" ?x ?y $?dir)) (length$ $?safe) )
+      (* ?vc 3)
+    )
+  )
+  =>
+  (assert (MAIN::flag ?x ?y))
+  (retract ?z)
+  (assert (MAIN::flags $?total ?x ?y))
+)
+
+;;coloca safes obvias
+(defrule set-obvious-safes
+  (declare (salience 1))
+  (FLAG::focus)
+
+  (MAIN::cell (x ?xc) (y ?yc) (v ?vc&:(> ?vc 0)) 
+              (viz-flags $?flags&:(= (length$ $?flags) (* ?vc 3)))
+              (viz-closed $? "C" ?xf ?yf $?)
+  )
+  (not (MAIN::safe ?xf ?yf))
+  (test
+    (not (METHODS::has-cell-member ?xf ?yf $?flags))
+  )
+  ?id <- (MAIN::safes $?total_safes)
+  =>
+  (assert (MAIN::safe ?xf ?yf))
+  (retract ?id)
+  (assert (MAIN::safes $?total_safes ?xf ?yf))
+)
+
+;;coloca safes por afinidade
+(defrule set-side-safes
+  (declare (salience 1))
+  (FLAG::focus)
+  (MAIN::safe ?xs ?ys)
+  ?c <- (MAIN::cell 
+              (viz-closed $?esq "C" ?xs ?ys $?dir)
+              (viz-safe $?safes)
+        )
+  (test
+    (not (METHODS::has-cell-member ?xs ?ys $?safes))
+  )
+  =>
+  (modify ?c (viz-safe $?safes "C" ?xs ?ys))
+)
+
+(defrule set-padrao11
+  (declare (salience 1))
+  (FLAG::focus)
+  (MAIN::cell (x ?x) (y ?y) (v 1)
+     (viz-closed "C" ?x_closed1 ?y_closed1 "C" ?x_closed2 ?y_closed2)
+  )
+  (MAIN::cell (x ?x2) (y ?y2) (v 1)
+    (viz-closed $?closed_before2 "C" ?xt ?yt $?closed_after2)
+  )
+  (not (exists (MAIN::safe ?xt ?yt)))
+  (not (exists (MAIN::flag ?xt ?yt)))
+  (test
+    (and
+      (= (length$ (create$ $?closed_before2 "C" ?xt ?yt $?closed_after2 )) 9)
+      (METHODS::viz ?x ?y ?x2 ?y2)
+      (or
+          (and (= ?x ?x2) (not (= ?y ?y2) ))
+          (and (= ?y ?y2) (not (= ?x ?x2) ))
+      )
+      (not (and (= ?xt ?x_closed1) (= ?yt ?y_closed1)))
+      (not (and (= ?xt ?x_closed2) (= ?yt ?y_closed2)))
+      (and
+        (or
+          (METHODS::has-cell-member ?x_closed1 ?y_closed1 $?closed_before2)
+          (METHODS::has-cell-member ?x_closed1 ?y_closed1 $?closed_after2)
+        )
+        (or
+          (METHODS::has-cell-member ?x_closed2 ?y_closed2 $?closed_after2)
+          (METHODS::has-cell-member ?x_closed2 ?y_closed2 $?closed_before2)
+        )
+      )
+    )
+  )
+  ?id <- (MAIN::safes $?total_safes)
+  =>
+  (assert (MAIN::safe ?xt ?yt))
+  (printout t "NEW SAFE: " ?xt " " ?yt " from " ?x " " ?y " and " ?x2 " " ?y2 crlf)
+  (retract ?id)
+  (assert (MAIN::safes $?total_safes ?xt ?yt))
+)
+
+(defrule set-padrao12
+  (declare (salience 1))
+  (FLAG::focus)
+  (MAIN::cell (x ?x) (y ?y) (v 1)
+    (viz-closed "C" ?x_closed1 ?y_closed1 "C" ?x_closed2 ?y_closed2)
+  )
+  (MAIN::cell (x ?x2) (y ?y2) (v 2)
+    (viz-closed $?closed_before2 "C" ?xt ?yt $?closed_after2)
+  )
+  (test
+    (and
+      (= (length$ (create$ $?closed_before2 "C" ?xt ?yt $?closed_after2 )) 9)
+      (METHODS::viz ?x ?y ?x2 ?y2)
+      (or
+          (and (= ?x ?x2) (not (= ?y ?y2) ))
+          (and (= ?y ?y2) (not (= ?x ?x2) ))
+      )
+      (not (and (= ?xt ?x_closed1) (= ?yt ?y_closed1)))
+      (not (and (= ?xt ?x_closed2) (= ?yt ?y_closed2)))
+      (and
+        (or
+          (METHODS::has-cell-member ?x_closed1 ?y_closed1 $?closed_before2)
+          (METHODS::has-cell-member ?x_closed1 ?y_closed1 $?closed_after2)
+        )
+        (or
+          (METHODS::has-cell-member ?x_closed2 ?y_closed2 $?closed_after2)
+          (METHODS::has-cell-member ?x_closed2 ?y_closed2 $?closed_before2)
+        )
+      )
+    )
+  )
+
+  (not (exists (MAIN::safe ?xt ?yt)))
+  (not (exists (MAIN::flag ?xt ?yt)))
+  ?id <- (MAIN::flags $?total)
+  =>
+  (assert (MAIN::flag ?xt ?yt))
+  (printout t "NEW FLAG: " ?xt " " ?yt " from " ?x " " ?y " and " ?x2 " " ?y2 crlf)
+  (retract ?id)
+  (assert (MAIN::flags $?total ?xt ?yt))
+)
+
+;;passa o fluxo para o modulo de play
+(defrule pass-to-play
+  (declare (salience 0))
+  ?z <- (FLAG::focus)
+  =>
+  ; (printout t "PASSING TO PLAY" crlf )
+  (retract ?z)
+  (assert (PLAY::focus))
+)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                  PLAY MODULE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set-current-module PLAY)
+(defrule focus-getter
+  (declare (auto-focus TRUE))
+  (PLAY::focus)
+  =>
+  (assert (MAIN::round-flags (create$)))
+  ; (printout t "PLAY" crlf)
+)
+
+;;termina
+(defrule play-finish
+  (declare(salience 6))
+  ?z <- (PLAY::focus)
+  (MAIN::minas ?minas)
+  (MAIN::flags $?flags&:(= (length$ $?flags) (* ?minas 2)))
+  =>
+  (retract ?z)
+  (printout t "PLAYED -> FINISH" crlf)
+  (assert (MINE::escolhe-prox) (novas-bandeiras $?flags) 
+        (escolhe (x 1000) 
+                 (y 1000)))
+  (return)
+)
+
+;;definir aqui o super smart clic
+(defrule super-play
+  (declare (salience 5))
+  ?z <- (PLAY::focus)
+  (MAIN::flags $?rflags)
+  (MAIN::cell (x ?xc) (y ?yc) (v ?vc&:(> ?vc 0))
+              (viz-safe $? "C" ?xs ?ys $?)
+              (viz-flags $?flags&:(= (length$ $?flags) (* ?vc 3)))
+  )
+  
+  (MAIN::fechada ?xf ?yf)
+  (not (exists (MAIN::flag ?xf ?yf)))
+  (not (exists (MAIN::safe ?xf ?yf)))
+
+  (test
+    (METHODS::viz ?xf ?yf ?xs ?ys)
+  )
+
+  =>
+  (retract ?z)
+  (printout t "PLAYED -> SUPER" crlf)
+  ; (printout t "COORDS "?xc " " ?yc crlf)
+  (assert (MINE::escolhe-prox) (novas-bandeiras $?rflags) 
+        (escolhe (x ?xc) 
+                 (y ?yc)))
+  (assert (MAIN::run))
+  (return)
+)
+
+;;definir aqui o single smart clic
+(defrule single-clic
+  (declare (salience 4))
+  ?z <- (PLAY::focus)
+  (MAIN::flags $?rflags)
+  
+  (MAIN::cell (x ?xc) (y ?yc) (v ?vc&:(> ?vc 0))
+              (viz-safe $? "C" ?xs ?ys $?))
+
+  (MAIN::fechada ?xf ?yf)
+  (not (exists (MAIN::flag ?xf ?yf)))
+  (not (exists (MAIN::safe ?xf ?yf)))
+
+  (test (METHODS::viz ?xf ?yf ?xs ?ys))
+  =>
+  (retract ?z)
+  (printout t "PLAYED -> SINGLE" crlf)
+  ; (printout t "COORDS "?xs " "?ys crlf)
+  (assert (MINE::escolhe-prox) (novas-bandeiras $?rflags) 
+        (escolhe (x ?xs) 
+                 (y ?ys)))
+  (assert (MAIN::run))
+  (return)
+)
+
+;;definir aqui o probabilistic clic
+;;;;;; GIANT MESS DOWN THERE:
+;;;;;;(num_closed_ajdacentes - flags_adjacentes - safes_adjacentes - valor) / (num_closed_ajdacentes - flags_adjacentes - safes_adjacentes)
+;;;;;;    tem de ser maior que
+;;;;;;(total_closed - total_safe - total_flags - (minas - total_flags)) / (total_closed - total_safe - total_flags)
+
+
+
+
+;;definir aqui o random clic
+(defrule random-play
+  (declare (salience 0))
+  ?z <- (PLAY::focus)
+  (MAIN::flags $?flags)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
+  (MAIN::fechada ?x ?y)
+  (not (exists (MAIN::safe ?x ?y)))
+  (not (exists (MAIN::flag ?x ?y)))
+  =>
+  (retract ?z)
+  (printout t "PLAYED -> RANDOM" crlf)
+  (assert (MINE::escolhe-prox) (novas-bandeiras $?flags) 
+        (escolhe (x ?x) 
+                 (y ?y)))
+  (assert (MAIN::run))
+  (return)
+)

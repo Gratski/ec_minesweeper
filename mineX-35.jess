@@ -589,24 +589,31 @@
 ;;;;;;(total_closed - total_safe - total_flags - (minas - total_flags)) / (total_closed - total_safe - total_flags)
 
 
-
-
 ;;definir aqui o random clic
 (defrule random-play
   (declare (salience 0))
   ?z <- (PLAY::focus)
   (MAIN::flags $?flags)
-  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
-  (MAIN::fechada ?x&:(= ?x (randInterval ?minx ?maxx)) ?y&:(= ?y (randInterval ?miny ?maxy)))
+  (MAIN::fechada ?x ?y)
+  (not(exists
+    (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
+                (viz-closed $?cbefore "C" ?x ?y $?cafter)
+                (viz-flags $?cflags&:(>= (* ?vc 3) (- (length$ (create$ $?cbefore "C" ?x ?y $?cafter)) (length$ $?cflags)))
+                )
+    )
+  ))
   
   (not (exists (MAIN::safe ?x ?y)))
   (not (exists (MAIN::flag ?x ?y)))
   =>
   (retract ?z)
   (printout t "PLAYED -> RANDOM" crlf)
+  (printout t "X: "?x crlf)
+  (printout t "Y: "?y crlf)
   (assert (MINE::escolhe-prox) (novas-bandeiras $?flags) 
         (escolhe (x ?x) 
                  (y ?y)))
   (assert (MAIN::run))
   (return)
 )
+

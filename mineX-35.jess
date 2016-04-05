@@ -20,6 +20,7 @@
                   METHODS MODULE
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmodule METHODS)
+
 ;;calcula a distancia de manhattan
 (deffunction METHODS::manhattan (?xh ?yh ?xb ?yb)
   (+
@@ -27,6 +28,7 @@
     (abs (- ?yh ?yb))
   )
 )
+
 ;;verifica se duas casas sao vizinhas
 (deffunction METHODS::viz (?xh ?yh ?xb ?yb)
   (or
@@ -37,6 +39,9 @@
     (and (= (+ ?xb 1) ?xh ) (= (- ?yb 1) ?yh)) ;;bottom right
   )
 )
+
+;;verifica se um par de coordenadas ?x ?y eh vizinho de algum par de
+;; coordenadas na lista $?list
 (deffunction METHODS::is-viz-of-any (?x ?y $?list)
   (METHODS::is-viz-of-any-aux 1 ?x ?y $?list)
 )
@@ -54,27 +59,26 @@
   )
 )
 
-(deffunction METHODS::complement ($?mega-list)
-  (bind ?result (create$))
-  (bind ?index 2)
-  (while (<= ?index (length$ $?mega-list)) do
-    (bind ?x (nth$ ?index $?mega-list))
-    (bind ?y (nth$ (+ ?index 1) $?mega-list))
-    (bind ?index_2 (+ ?index 3))
-    (while (<= ?index_2 (length$ $?mega-list)) do
-      (bind ?new_x (nth$ ?index_2 $?mega-list))
-      (bind ?new_y (nth$ (+ ?index_2 1) $?mega-list))
-      (if (and (= ?x ?new_x) (= ?y ?new_y))
-        then
-          (insert$ $?result "C" ?x ?y)
-          (delete$ $?mega-list (- ?index_2 1) (+ ?index_2 1))
-          (bind ?index_2 10000)
-      )
-      (bind ?index_2 (+ ?index_2 3))
-    )
-    (bind ?index (+ ?index 3))
+;; devolve numero random entre ?min ?max
+;; Author: Prof. Paulo Urbano
+(deffunction METHODS::randInterval (?min ?max)
+  (+
+    ?min
+    (mod (random) (- (+ 1 ?max) ?min))
   )
-  (return $?result)
+)
+
+;; Dadas as coordenadas do mundo, escolhe um par de coordenadas random,
+;; tal que esse par não esteja contido em $?list
+(deffunction METHODS::choose-random (?minx ?maxx ?miny ?maxy $?list)
+  (bind ?rand_x (METHODS::randInterval ?minx ?maxx))
+  (bind ?rand_y (METHODS::randInterval ?miny ?maxy))
+  (if (METHODS::has-cell-member-para2 ?rand_x ?rand_y $?list)
+    then
+      (return (METHODS::choose-random ?minx ?maxx ?miny ?maxy $?list))
+    else
+      (return (create$ ?rand_x ?rand_y))
+  )
 )
 
 ;;verifica se duas casas nao sao a mesma
@@ -93,7 +97,6 @@
 ;;utilizado para gerar todas as possiveis adjacentes
 ;;para uma dada posicao e o tabuleiro
 (deffunction METHODS::generate-all-vizs (?x ?y ?minx ?maxx ?miny ?maxy)
-  
   (bind ?list (create$))
 
   ;;se nao estah na fronteira esquerda
@@ -149,37 +152,33 @@
       (METHODS::has-cell-member-aux ?x ?y (+ ?index 3) $?list)
   )
 )
-;;verifica se uma lista tem um dado elemento contando com o "C"
-(deffunction METHODS::has-cell-member-b (?x ?y $?list)
-  (METHODS::has-cell-member-aux-b ?x ?y 1 $?list)
+
+;;verifica se uma lista tem um dado elemento sem contar com o "C"
+(deffunction METHODS::has-cell-member-para2 (?x ?y $?list)
+  (METHODS::has-cell-member-aux-para2 ?x ?y 1 $?list)
 )
-(deffunction METHODS::has-cell-member-aux-b (?x ?y ?index $?list)
+(deffunction METHODS::has-cell-member-aux-para2 (?x ?y ?index $?list)
   (if (> ?index (- (length$ $?list) 1))
     then
       (return FALSE)
   )
   (bind ?first (nth$ ?index ?list))
   (bind ?second (nth$ (+ ?index 1) $?list))
-
   (if (and (= ?x ?first) (= ?y ?second))
     then
       (return TRUE)
     else
-      (METHODS::has-cell-member-aux-b ?x ?y (+ ?index 2) $?list)
+      (METHODS::has-cell-member-aux-para2 ?x ?y (+ ?index 2) $?list)
   )
 )
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                   MINE MODULE
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmodule MINE)
 (deffacts tag-escolhe
   (escolhe-prox)
-)
-(deffunction randInterval (?min ?max)
-  (+
-    ?min
-    (mod (random) (- (+ 1 ?max) ?min))
-  )
 )
 
 ;;first play
@@ -203,9 +202,10 @@
   (assert (MAIN::total-fechadas (* (+ (* ?maxx 2) 1) (+ (* ?maxy 2) 1) ) ))
   (assert (MAIN::flags (create$)))
   (assert (MAIN::safes (create$)))
+  (assert (MAIN::abertas (create$)))
   (assert (escolhe-prox) (novas-bandeiras) 
-        (escolhe (x (randInterval ?minx ?maxx)) 
-                 (y (randInterval ?miny ?maxy))))
+        (escolhe (x (METHODS::randInterval ?minx ?maxx)) 
+                 (y (METHODS::randInterval ?miny ?maxy))))
   (printout t "============================" crlf)
   ; (printout t "STARTER" crlf)
   (return)
@@ -214,7 +214,7 @@
 ;;run solver algorithm
 (defrule ui-algorithm
   ?out <- (escolhe-prox)
-  (exists(MAIN::aberta (x ?)))
+  (exists (MAIN::aberta (x ?)))
   (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
   =>
   (retract ?out)
@@ -241,9 +241,13 @@
   (SETUP::focus)
   (MAIN::aberta (x ?x) (y ?y) (valor ?v&:(= ?v 0)))
   ?z <- (MAIN::cell (x ?x) (y ?y))
+  ?id <- (MAIN::abertas $?todas_abertas)
   =>
   (retract ?z)
+  (retract ?id)
+  (assert (MAIN::abertas $?todas_abertas ?x ?y))
 )
+
 (defrule fechada-remove
   (declare(salience 2))
   (SETUP::focus)
@@ -593,26 +597,18 @@
 (defrule random-play
   (declare (salience 0))
   ?z <- (PLAY::focus)
+  (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
   (MAIN::flags $?flags)
-  (MAIN::fechada ?x ?y)
-  (not(exists
-    (MAIN::cell (x ?xc) (y ?yc) (v ?vc)
-                (viz-closed $?cbefore "C" ?x ?y $?cafter)
-                (viz-flags $?cflags&:(>= (* ?vc 3) (- (length$ (create$ $?cbefore "C" ?x ?y $?cafter)) (length$ $?cflags)))
-                )
-    )
-  ))
-  
-  (not (exists (MAIN::safe ?x ?y)))
-  (not (exists (MAIN::flag ?x ?y)))
+  (MAIN::safes $?safes)
+  (MAIN::abertas $?abertas)
   =>
-  (retract ?z)
   (printout t "PLAYED -> RANDOM" crlf)
-  (printout t "X: "?x crlf)
-  (printout t "Y: "?y crlf)
-  (assert (MINE::escolhe-prox) (novas-bandeiras $?flags) 
-        (escolhe (x ?x) 
-                 (y ?y)))
+  (retract ?z)
+  (bind ?flag-open-safe (create$ $?flags $?abertas $?safes))
+  (bind ?rand_coor (METHODS::choose-random ?minx ?maxx ?miny ?maxy $?flag-open-safe))
+  (assert (MINE::escolhe-prox) (novas-bandeiras $?flags)
+        (escolhe (x (nth$ 1 ?rand_coor)) 
+                 (y (nth$ 2 ?rand_coor))))
   (assert (MAIN::run))
   (return)
 )

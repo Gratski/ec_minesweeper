@@ -241,23 +241,25 @@
   (SETUP::focus)
   (MAIN::aberta (x ?x) (y ?y) (valor ?v&:(= ?v 0)))
   ?z <- (MAIN::cell (x ?x) (y ?y))
-  ?id <- (MAIN::abertas $?todas_abertas)
   =>
   (retract ?z)
-  (retract ?id)
-  (assert (MAIN::abertas $?todas_abertas ?x ?y))
 )
 
+
+;; Actualiza lista de abertas, remove as fechadas e actualiza o total de fechadas
 (defrule fechada-remove
   (declare(salience 2))
   (SETUP::focus)
   ?z <- (MAIN::fechada ?xf ?yf)
   ?c <- (MAIN::total-fechadas ?total)
   (exists (MAIN::aberta (x ?xf) (y ?yf)))
+  ?id <- (MAIN::abertas $?todas_abertas)
   =>
   (retract ?z)
   (retract ?c)
   (assert (MAIN::total-fechadas (- ?total 1)))
+  (retract ?id)
+  (assert (MAIN::abertas $?todas_abertas ?xf ?yf))
 )
 
 ;;actualiza cells de acordo com info de board

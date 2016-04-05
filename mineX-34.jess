@@ -397,7 +397,7 @@
   (printout t "PLAY" crlf)
 )
 
-;;termina
+;;finish
 (defrule play-finish
   (declare(salience 6))
   ?z <- (PLAY::focus)
@@ -412,7 +412,7 @@
   (return)
 )
 
-;;definir aqui o super smart clic
+;;super clic
 (defrule super-play
   (declare(salience 5))
   ?z <- (PLAY::focus)
@@ -442,7 +442,7 @@
   (return)
 )
 
-;;definir aqui o single smart clic
+;;single clic
 (defrule single-clic
   (declare(salience 4))
   ?z <- (PLAY::focus)
@@ -469,8 +469,104 @@
   (return)
 )
 
-;;definir aqui o probabilistic clic
+;;probabilistic clic
+(defrule probabilistic-smart-clic
+  (declare (salience 3))
+  ?z <- (PLAY::focus)
+  (MAIN::minas ?mines)
+  (MAIN::flags $?totalflags)
+  (MAIN::total-fechadas ?totalclosed)
+  (MAIN::cell (x ?xc) (y ?yc) (v ?vc&:(> ?vc 0))
+              (viz-closed $?cesq "C" ?x ?y $?cdir)
+              (viz-flags $?cflags))
 
+  (MAIN::cell (x ?xc2) (y ?yc2) (v ?vc2&:(> ?vc2 0))
+              (viz-closed $?cclosed2)
+              (viz-flags $?cflags2))
+  
+  (test
+    (and
+      (METHODS::viz ?xc ?yc ?xc2 ?yc2)
+      (not(METHODS::has-cell-member ?x ?y $?cclosed2))
+      (not(METHODS::has-cell-member-b ?x ?y $?totalflags))      
+      (> (- ?vc (/ (length$ $?cflags) 3) ) 0)
+      (>
+        ( / 
+          (- ?mines (/ (length$ $?totalflags) 2)) 
+          ?totalclosed 
+        )
+        ( / 
+          (- ?vc (/ (length$ $?cflags) 3) )
+          ( / (length$ (create$ $?cesq "C" ?x ?y $?cdir)) 3 ) 
+        )
+      )
+    )
+  )
+
+  =>
+  (retract ?z)
+  (printout t "PLAYED -> PROBABILISTIC SMART" crlf)
+  (printout t "COORDS "?x " "?y crlf)
+  (printout t "CLIC OUT: " ( / 
+        (- ?mines (/ (length$ $?totalflags) 2)) 
+        ?totalclosed 
+      ) crlf)
+  (printout t "CLIC ADJ: " ( / 
+        (- ?vc (/ (length$ $?cflags) 3) )
+        ( / (length$ (create$ $?cesq "C" ?x ?y $?cdir)) 3 ) 
+      ) crlf)
+  (assert (MINE::escolhe-prox) (novas-bandeiras $?totalflags) 
+        (escolhe (x ?x) 
+                 (y ?y)))
+  (assert (MAIN::run))
+  (return)
+)
+
+(defrule probabilistic-clic
+  (declare (salience 3))
+  ?z <- (PLAY::focus)
+  (MAIN::minas ?mines)
+  (MAIN::flags $?totalflags)
+  (MAIN::total-fechadas ?totalclosed)
+  (MAIN::cell (x ?xc) (y ?yc) (v ?vc&:(> ?vc 0))
+              (viz-closed $?cesq "C" ?x ?y $?cdir)
+              (viz-flags $?cflags))
+  
+  (test
+    (and
+      (> (- ?vc (/ (length$ $?cflags) 3) ) 0)
+      (not(METHODS::has-cell-member ?x ?y $?cflags))
+      (>
+        ( / 
+          (- ?mines (/ (length$ $?totalflags) 2)) 
+          ?totalclosed 
+        )
+        ( / 
+          (- ?vc (/ (length$ $?cflags) 3) )
+          ( / (length$ (create$ $?cesq "C" ?x ?y $?cdir)) 3 ) 
+        )
+      )
+    )
+  )
+
+  =>
+  (retract ?z)
+  (printout t "PLAYED -> PROBABILISTIC" crlf)
+  (printout t "COORDS "?x " "?y crlf)
+  (printout t "CLIC OUT: " ( / 
+        (- ?mines (/ (length$ $?totalflags) 2)) 
+        ?totalclosed 
+      ) crlf)
+  (printout t "CLIC ADJ: " ( / 
+        (- ?vc (/ (length$ $?cflags) 3) )
+        ( / (length$ (create$ $?cesq "C" ?x ?y $?cdir)) 3 ) 
+      ) crlf)
+  (assert (MINE::escolhe-prox) (novas-bandeiras $?totalflags) 
+        (escolhe (x ?x) 
+                 (y ?y)))
+  (assert (MAIN::run))
+  (return)
+)
 ;;definir aqui o random clic
 (defrule random-play
   (declare (salience 0))

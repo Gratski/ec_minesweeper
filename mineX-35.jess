@@ -58,7 +58,6 @@
       )
   )
 )
-
 ;; devolve numero random entre ?min ?max
 ;; Author: Prof. Paulo Urbano
 (deffunction METHODS::randInterval (?min ?max)
@@ -202,6 +201,8 @@
   (assert (MAIN::total-fechadas (* (+ (* ?maxx 2) 1) (+ (* ?maxy 2) 1) ) ))
   (assert (MAIN::flags (create$)))
   (assert (MAIN::safes (create$)))
+  (assert (MAIN::total-safes 0))
+  (assert (MAIN::total-flags 0))
   (assert (MAIN::abertas (create$)))
   (assert (escolhe-prox) (novas-bandeiras) 
         (escolhe (x (METHODS::randInterval ?minx ?maxx)) 
@@ -328,11 +329,14 @@
     (= (length$ (create$ $?esq "C" ?x ?y $?dir) ) (* ?vc 3) )
   )
   ?f <- (MAIN::flags $?flags)
+  ?z <- (MAIN::total-flags ?total-flags)
   =>
   ;;actualiza flags
   (retract ?f)
+  (retract ?z)
   (assert (MAIN::flag ?x ?y))
   (assert (MAIN::flags $?flags ?x ?y))
+  (assert (MAIN::total-flags (+ ?total-flags 1)))
 )
 
 ;;coloca flags por afinidade
@@ -364,6 +368,7 @@
   (not (exists (MAIN::flag ?x ?y)))
   (not (exists (MAIN::safe ?x ?y)))
   ?z <- (MAIN::flags $?total)
+  ?c <- (MAIN::total-flags ?total-flags)
   
   (test
     (=
@@ -374,6 +379,8 @@
   =>
   (assert (MAIN::flag ?x ?y))
   (retract ?z)
+  (retract ?c)
+  (assert (MAIN::total-flags (+ ?total-flags 1)))
   (assert (MAIN::flags $?total ?x ?y))
 )
 
@@ -391,9 +398,12 @@
     (not (METHODS::has-cell-member ?xf ?yf $?flags))
   )
   ?id <- (MAIN::safes $?total_safes)
+  ?c  <- (MAIN::total-safes ?total-safes)
   =>
   (assert (MAIN::safe ?xf ?yf))
   (retract ?id)
+  (retract ?c)
+  (assert (MAIN::total-safes (+ ?total-safes 1)))
   (assert (MAIN::safes $?total_safes ?xf ?yf))
 )
 
@@ -593,6 +603,52 @@
 ;;;;;;(num_closed_ajdacentes - flags_adjacentes - safes_adjacentes - valor) / (num_closed_ajdacentes - flags_adjacentes - safes_adjacentes)
 ;;;;;;    tem de ser maior que
 ;;;;;;(total_closed - total_safe - total_flags - (minas - total_flags)) / (total_closed - total_safe - total_flags)
+(defrule probabilistic-clic
+  (declare (salience 3))
+  ?z <- (PLAY::focus)
+  (minas ?total-minas)
+  (total-fechadas ?total-fechadas)
+  (total-flags ?total-flags)
+  (total-safes ?total-safes)
+  (flags $?rflags)
+
+  (fechada ?xf ?yf)
+  (not(aberta (x ?xf) (y ?yf)))
+  (not(exists(safe ?xf ?yf)))
+  (not(exists(flag ?xf ?yf)))
+
+  (cell (x ?xc) (y ?yc) (v ?vc&:(> ?vc 0))
+        (viz-flags $?cflags)
+        (viz-safe $?csafes)
+        (viz-closed $?esq-cclosed "C" ?xf ?yf $?dir-cclosed)
+  )
+  (test
+    (>
+      ( / 
+          ( - ?total-minas ?total-flags )
+          ( - ?total-fechadas (+ ?total-flags ?total-safes) )
+      )
+      ( / 
+          ( - ?vc (/ (length$ $?cflags) 3) )
+          ( / 
+            ( - 
+              (length$ (create$ $?esq-cclosed "C" ?xf ?yf $?dir-cclosed )) 
+              ( + (length$ $?cflags) (length$ $?csafes) ) 
+            ) 
+            3
+          )
+      )
+    )
+  )
+  =>
+  (printout t "PLAY -> PRO" crlf)
+  (retract ?z)
+  (assert (MINE::escolhe-prox) (novas-bandeiras $?rflags) 
+        (escolhe (x ?xf) 
+                 (y ?yf)))
+  (assert (MAIN::run))
+  (return)
+)
 
 
 ;;definir aqui o random clic
@@ -614,4 +670,5 @@
   (assert (MAIN::run))
   (return)
 )
+
 

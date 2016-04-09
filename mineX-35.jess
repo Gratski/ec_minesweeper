@@ -201,14 +201,14 @@
   (assert (MAIN::total-fechadas (* (+ (* ?maxx 2) 1) (+ (* ?maxy 2) 1) ) ))
   (assert (MAIN::flags (create$)))
   (assert (MAIN::safes (create$)))
+  (assert (MAIN::abertas (create$)))
   (assert (MAIN::total-safes 0))
   (assert (MAIN::total-flags 0))
-  (assert (MAIN::abertas (create$)))
   (assert (escolhe-prox) (novas-bandeiras) 
         (escolhe (x (METHODS::randInterval ?minx ?maxx)) 
                  (y (METHODS::randInterval ?miny ?maxy))))
   (printout t "============================" crlf)
-  ; (printout t "STARTER" crlf)
+  (printout t "STARTER" crlf)
   (return)
 )
 
@@ -263,7 +263,7 @@
   (assert (MAIN::abertas $?todas_abertas ?xf ?yf))
 )
 
-;;actualiza cells de acordo com info de board
+;;actualiza o value de cells de acordo com info de board
 (defrule cell-value-update
   (declare(salience 2))
   (SETUP::focus)
@@ -272,6 +272,8 @@
   =>
   (modify ?z (v ?v))
 )
+
+;;actualiza a lista de cells vizinhas fechadas de acordo com info de board
 (defrule cell-closed-update
   (declare(salience 2))
   (SETUP::focus)
@@ -282,6 +284,8 @@
   =>
   (modify ?z (viz-closed ?esq ?dir))
 )
+
+;;actualiza a lista de cells vizinhas safe de acordo com info de board
 (defrule cell-safe-update
   (declare (salience 2))
   (SETUP::focus)
@@ -525,7 +529,6 @@
   (declare (auto-focus TRUE))
   (PLAY::focus)
   =>
-  (assert (MAIN::round-flags (create$)))
   ; (printout t "PLAY" crlf)
 )
 
@@ -599,7 +602,6 @@
 )
 
 ;;definir aqui o probabilistic clic
-;;;;;; GIANT MESS DOWN THERE:
 ;;;;;;(num_closed_ajdacentes - flags_adjacentes - safes_adjacentes - valor) / (num_closed_ajdacentes - flags_adjacentes - safes_adjacentes)
 ;;;;;;    tem de ser maior que
 ;;;;;;(total_closed - total_safe - total_flags - (minas - total_flags)) / (total_closed - total_safe - total_flags)

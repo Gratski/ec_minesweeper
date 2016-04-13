@@ -572,7 +572,6 @@
   (assert (MINE::escolhe-prox) (novas-bandeiras $?rflags) 
         (escolhe (x ?xc) 
                  (y ?yc)))
-  (assert (MAIN::run))
   (return)
 )
 
@@ -597,7 +596,6 @@
   (assert (MINE::escolhe-prox) (novas-bandeiras $?rflags) 
         (escolhe (x ?xs) 
                  (y ?ys)))
-  (assert (MAIN::run))
   (return)
 )
 
@@ -615,9 +613,9 @@
   (flags $?rflags)
 
   (fechada ?xf ?yf)
-  (not(aberta (x ?xf) (y ?yf)))
-  (not(exists(safe ?xf ?yf)))
-  (not(exists(flag ?xf ?yf)))
+  (not (aberta (x ?xf) (y ?yf)))
+  (not (exists (safe ?xf ?yf)))
+  (not (exists (flag ?xf ?yf)))
 
   (cell (x ?xc) (y ?yc) (v ?vc&:(> ?vc 0))
         (viz-flags $?cflags)
@@ -648,7 +646,6 @@
   (assert (MINE::escolhe-prox) (novas-bandeiras $?rflags) 
         (escolhe (x ?xf) 
                  (y ?yf)))
-  (assert (MAIN::run))
   (return)
 )
 
@@ -669,7 +666,6 @@
   (assert (MINE::escolhe-prox) (novas-bandeiras $?flags)
         (escolhe (x (nth$ 1 ?rand_coor)) 
                  (y (nth$ 2 ?rand_coor))))
-  (assert (MAIN::run))
   (return)
 )
 

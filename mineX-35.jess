@@ -29,6 +29,21 @@
   )
 )
 
+;;shuffle
+(deffunction METHODS::shuffle-list (?minx ?maxx $?list)
+  (if (not( = (length$ $?list) (+ (* ?maxx 2) 1) )) then 
+    (bind ?r (METHODS::randInterval ?minx ?maxx))
+    (if (not(member$ ?r $?list)) then
+      (bind $?list (create$ $?list ?r))
+      (METHODS::shuffle-list ?minx ?maxx $?list)
+      else
+        (METHODS::shuffle-list ?minx ?maxx $?list)
+    )
+    else
+      (return $?list)
+  )
+)
+
 ;;verifica se duas casas sao vizinhas
 (deffunction METHODS::viz (?xh ?yh ?xb ?yb)
   (or
@@ -187,11 +202,13 @@
   (MAIN::mundo (min-x ?minx) (max-x ?maxx) (min-y ?miny) (max-y ?maxy))
   =>
   (retract ?out)
-  (for (bind ?i ?minx) (<= ?i ?maxx) (++ ?i)
-    (for (bind ?j ?miny) (<= ?j ?maxy) (++ ?j)
-      (assert (MAIN::fechada ?i ?j))
-      (assert (MAIN::cell (x ?i) (y ?j) (v 0) 
-              (viz-closed (METHODS::generate-all-vizs ?i ?j ?minx ?maxx ?miny ?maxy))
+  (bind $?linhas (METHODS::shuffle-list ?minx ?maxx (create$)))
+  (bind $?colunas (METHODS::shuffle-list ?miny ?maxy (create$)))
+  (for (bind ?i 1) (<= ?i (+ (* ?maxx 2) 1)) (++ ?i)
+    (for (bind ?j 1) (<= ?j (+ (* ?maxy 2) 1)) (++ ?j)
+      (assert (MAIN::fechada ( nth$ ?i $?linhas ) ( nth$ ?j $?colunas) ))
+      (assert (MAIN::cell (x ( nth$ ?i $?linhas )) (y ( nth$ ?j $?colunas)) (v 0) 
+              (viz-closed (METHODS::generate-all-vizs ( nth$ ?i $?linhas ) ( nth$ ?j $?colunas) ?minx ?maxx ?miny ?maxy))
               (viz-safe (create$))
               (viz-flags (create$))
               )
